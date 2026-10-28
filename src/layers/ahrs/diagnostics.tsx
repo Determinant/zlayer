@@ -1,5 +1,6 @@
 import { memo, useEffect, useState } from 'react';
 import type { AhrsLayer, AhrsSnapshot } from './layer';
+import { RAD } from './estimator/math';
 
 type Sample = { time: number; tilt: number | null; aided: boolean; breakBefore: boolean };
 const HISTORY_SECONDS = 120;
@@ -12,13 +13,14 @@ const aided = (state: AhrsSnapshot) => state.attitude?.gpsAiding === true || sta
 
 function aidingStatus(state: AhrsSnapshot): string {
   if (!propagating(state)) return 'Motion paused';
+  if (state.attitude?.groundState === 'at-rest') return 'Qualified for stationary corrections';
   if (state.attitude?.tiltAiding) return 'Gravity / acceleration aiding';
   if (state.attitude?.magneticFusion.active) return state.attitude.magneticFusion.mode === 'vector'
     ? 'Magnetic vector aiding' : 'Magnetic heading aiding';
   if (!state.gpsLive) return 'No GPS aid · No GPS';
   if (aided(state)) return 'GPS aiding';
   if (!state.gpsUsable) return 'Waiting for usable sensor observations';
-  if (state.attitude?.headingStatus !== 'tracking') return 'Waiting for gravity, magnetic or heading evidence';
+  if (state.attitude?.headingStatus !== 'tracking') return 'Waiting for magnetic or heading evidence';
   return 'Waiting for GPS correction';
 }
 
@@ -77,12 +79,13 @@ export const AhrsDiagnostics = memo(function AhrsDiagnostics({ layer, active }: 
   const attitude = state.attitude;
   if (!attitude) return null;
   const live = propagating(state);
+  const ground = live ? attitude.groundDiagnostics : undefined;
   const angle = (value: number) => live ? degrees(value) : '—';
   return <details className="ui-disclosure ahrs-diagnostics">
     <summary><span>Tilt uncertainty</span><strong title="Estimated tilt uncertainty (1σ)">{angle(attitude.tiltStd)}</strong></summary>
     <p className={`ahrs-aiding-status${aided(state) ? ' is-aided' : ''}`}>{aidingStatus(state)}</p>
     <UncertaintyTrend samples={samples} />
-    <div className="ui-meta ahrs-uncertainty-legend"><span className="is-aided">Tilt aided</span><span className="is-unaided">Gyro propagation</span></div>
+    <div className="ui-meta ahrs-uncertainty-legend"><span className="is-aided">Tilt aided</span><span className="is-unaided">No external tilt aid</span></div>
     <dl className="ahrs-diagnostic-readings">
       <div><dt className="ui-meta">Roll σ</dt><dd>{angle(attitude.attitudeStd[0])}</dd></div>
       <div><dt className="ui-meta">Pitch σ</dt><dd>{angle(attitude.attitudeStd[1])}</dd></div>
@@ -95,7 +98,14 @@ export const AhrsDiagnostics = memo(function AhrsDiagnostics({ layer, active }: 
       <div><dt className="ui-meta">Last velocity aid</dt><dd>{Number.isFinite(attitude.fusionAge) ? `${attitude.fusionAge.toFixed(1)}s ago` : 'Never'}</dd></div>
       <div><dt className="ui-meta">Last tilt aid</dt><dd>{Number.isFinite(attitude.tiltFusion.age) ? `${attitude.tiltFusion.age.toFixed(1)}s ago` : 'Never'}</dd></div>
       <div><dt className="ui-meta">Magnetic aiding</dt><dd title={attitude.magneticFusion.reason}>{attitude.magneticFusion.active ? 'Active' : 'Waiting'}</dd></div>
+      <div><dt className="ui-meta">Rest correction</dt><dd>{!live ? '—' : attitude.groundState === 'at-rest' ? 'Qualified' : 'Waiting'}</dd></div>
+      {ground && <>
+        <div><dt className="ui-meta">Rotation / mean</dt><dd>{(ground.angularRate / RAD).toFixed(2)} / {(ground.meanAngularRate / RAD).toFixed(2)}°/s</dd></div>
+        <div><dt className="ui-meta">Gyro vibration</dt><dd>{(ground.gyroVibration / RAD).toFixed(2)}°/s</dd></div>
+        <div><dt className="ui-meta">Accel vibration</dt><dd>{ground.accelVibration.toFixed(2)} m/s²</dd></div>
+      </>}
     </dl>
+    {ground && <p className="ui-meta">Rest qualification: {ground.reason}.</p>}
     <p className="ui-meta ahrs-fusion-counts">GPS velocity: {attitude.fusion.accepted} used · {attitude.fusion.rejected} rejected · {attitude.fusion.stale} late</p>
     <p className="ui-meta ahrs-tilt-counts">Tilt updates: {attitude.tiltFusion.accepted} used · {attitude.tiltFusion.rejected} rejected. {attitude.tiltFusion.reason}</p>
     <p className="ui-meta ahrs-magnetic-counts">Magnetic fusion: {attitude.magneticFusion.accepted} used · {attitude.magneticFusion.rejected} rejected. {attitude.magneticFusion.reason}</p>

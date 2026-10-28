@@ -1,0 +1,42 @@
+{
+  "state": {
+    "QUATERNION": 0,
+    "VELOCITY": 4,
+    "GYRO_BIAS": 7,
+    "ACCEL_BIAS": 10,
+    "GYRO_BIAS_VARIANCE": 13,
+    "ACCEL_BIAS_VARIANCE": 16,
+    "ATTITUDE_COVARIANCE": 19,
+    "UNAIDED_YAW": 28,
+    "STARTED": 29,
+    "YAW_ALIGNED": 30,
+    "GNSS_VELOCITY": 31,
+    "GNSS_HEIGHT": 32,
+    "GRAVITY": 33,
+    "MAGNETIC_MODE": 34,
+    "HEADING_SOURCE": 35,
+    "DELAYED_TIME": 36,
+    "VELOCITY_DIMENSION": 37,
+    "HEIGHT_VALID": 38,
+    "AT_REST": 39,
+    "IN_AIR": 40,
+    "GRAVITY_AID": 41,
+    "VELOCITY_AID": 51,
+    "MAGNETIC_AID": 61,
+    "HEIGHT_AID": 71,
+    "SIZE": 81
+  },
+  "aid": {
+    "TIME": 0,
+    "LAST_FUSION": 1,
+    "FUSED": 2,
+    "REJECTED": 3,
+    "INNOVATION": 4,
+    "VARIANCE": 7
+  },
+  "headingSource": {
+    "UNKNOWN": 0,
+    "MANUAL": 1,
+    "GNSS": 2
+  }
+}

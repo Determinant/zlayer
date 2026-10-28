@@ -26,7 +26,10 @@ function scan(directory: string): void {
         const path = resolve(dirname(file), specifier.split('?')[0]!);
         target = [path, `${path}.ts`, `${path}.tsx`, `${path}/index.ts`, `${path}/index.tsx`,
           ...(path.endsWith('.js') ? [path.slice(0, -3) + '.ts', path.slice(0, -3) + '.tsx'] : [])]
-          .find(candidate => existsSync(candidate) && /\.(tsx?|json|css)$/.test(candidate));
+          .find(candidate => existsSync(candidate) && (/\.(tsx?|json|css)$/.test(candidate) ||
+            // Self-contained compiler output, independently checked by ahrs:check.
+            // Do not make arbitrary unscanned JavaScript an import-boundary escape.
+            local(candidate) === 'src/layers/ahrs/estimator/px4/generated/ekf.js'));
         if (!target) failures.add(`${local(file)}: unresolved local dependency ${specifier}`);
       }
       dependencies.push({ specifier, ...(target ? { target } : {}), runtime, lazy });

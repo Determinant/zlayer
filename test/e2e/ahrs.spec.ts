@@ -25,6 +25,7 @@ async function openAhrs(page: Page, permission = 'granted', ownshipEnabled = fal
     let queuedMotion: DeviceMotionEvent[] | null = null;
     let pausedMotion = false;
     let altitude: number | null = 3048;
+    let longitude = -122;
     window.addEventListener('test-ahrs-gps-lost', () => { gps = false; });
     window.addEventListener('test-ahrs-gps-restored', () => { gps = true; });
     window.addEventListener('test-ahrs-roll', () => { rolling = true; });
@@ -72,7 +73,10 @@ async function openAhrs(page: Page, permission = 'granted', ownshipEnabled = fal
           queuedMotion.push(event);
         } else window.dispatchEvent(event);
       }, 20);
-      setInterval(() => { if (gps) window.dispatchEvent(new CustomEvent('test-gps-position', { detail: { speed, altitude, altitudeAccuracy: 10 } })); }, 1000);
+      setInterval(() => {
+        longitude += speed / (111320 * Math.cos(37 * Math.PI / 180));
+        if (gps) window.dispatchEvent(new CustomEvent('test-gps-position', { detail: { longitude, speed, altitude, altitudeAccuracy: 10 } }));
+      }, 1000);
     });
   }, { permission, ownshipEnabled });
   await page.goto('/');
@@ -87,6 +91,58 @@ async function backgroundAhrs(page: Page) {
   await page.getByRole('alertdialog', { name: 'Stow AHRS?', exact: true })
     .getByRole('button', { name: 'Background', exact: true }).click();
 }
+
+test('ordinary calibration handles zero-speed vibration and movement without switching modes', async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  await page.clock.install();
+  await openAhrs(page);
+  await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('test-ahrs-speed', { detail: 0 }));
+    window.dispatchEvent(new Event('test-ahrs-mounted-vibration'));
+    window.dispatchEvent(new Event('test-ahrs-sensors'));
+  });
+  await page.clock.runFor(32_000);
+  await expect(page.getByRole('button', { name: 'Recalibrate', exact: true })).toBeVisible();
+  const label = await page.getByRole('img', { name: /^Attitude indicator/ }).getAttribute('aria-label');
+  const angles = label!.match(/Roll (-?[\d.]+)°, pitch (-?[\d.]+)°/)!;
+  expect(Math.abs(Number(angles[1]))).toBeLessThan(3);
+  expect(Math.abs(Number(angles[2]))).toBeLessThan(3);
+  await page.getByRole('region', { name: 'AHRS toolbox', exact: true }).screenshot({ path: testInfo.outputPath('zero-speed-px4.png') });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('test-ahrs-speed', { detail: 50 })));
+  await page.clock.runFor(10_000);
+  await expect(page.getByRole('button', { name: 'Start moving', exact: true })).toHaveCount(0);
+  await expect(page.getByTestId('hsi-heading-estimate')).toHaveText('Estimated heading');
+  await expect(page.getByTestId('ahrs-cross')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Recalibrate', exact: true })).toBeVisible();
+});
+
+test('raw magnetometer aids PX4 and an excessive field loses active magnetic status', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.clock.install();
+  await page.addInitScript(() => {
+    class Field extends EventTarget {
+      x = 0; y = -40; z = -20; timestamp = 0;
+      timer: ReturnType<typeof setInterval> | undefined;
+      start() {
+        this.timer = setInterval(() => { this.timestamp = performance.now(); this.dispatchEvent(new Event('reading')); }, 100);
+        window.addEventListener('test-field-disturbance', () => { this.x = this.y = this.z = 200; });
+      }
+      stop() { clearInterval(this.timer); }
+    }
+    Object.defineProperty(window, 'Magnetometer', { configurable: true, value: Field });
+  });
+  await openAhrs(page);
+  await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
+  await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-sensors')));
+  await page.clock.runFor(30_000);
+  await page.locator('.ahrs-diagnostics summary').click();
+  await expect(page.locator('.ahrs-magnetic-counts')).toContainText(/Magnetic fusion: [1-9]\d* used/);
+  await expect(page.locator('.ahrs-diagnostic-readings')).toContainText('Magnetic aidingActive');
+  await page.evaluate(() => window.dispatchEvent(new Event('test-field-disturbance')));
+  await page.clock.runFor(3000);
+  await expect(page.locator('.ahrs-diagnostic-readings')).toContainText('Magnetic aidingWaiting');
+});
 
 test('mounted vibration calibrates and keeps live attitude and estimated HSI usable', async ({ page }, testInfo) => {
   test.setTimeout(120_000);
@@ -265,7 +321,7 @@ for (const mode of ['denied', 'unsupported'] as const) {
   });
 }
 
-test('magnetic heading fusion uses absolute orientation and suspends on a field jump', async ({ page }) => {
+test('OS-fused absolute orientation stays excluded from PX4, including a compass jump', async ({ page }) => {
   test.setTimeout(120_000);
   await page.clock.install();
   await page.addInitScript(() => {
@@ -297,14 +353,13 @@ test('magnetic heading fusion uses absolute orientation and suspends on a field 
     window.dispatchEvent(new Event('test-magnetic-start'));
   });
   await page.locator('.ahrs-diagnostics summary').click();
-  // Correlated OS headings may remain uninformative until drift uncertainty
-  // exceeds their retained noise floor. Exercise the two-minute drift window.
-  await page.clock.runFor(120_000);
-  await expect(page.locator('.ahrs-magnetic-counts')).toContainText(/Magnetic fusion: [1-9]\d+ used/);
+  await page.clock.runFor(30_000);
+  await expect(page.locator('.ahrs-magnetic-counts')).toContainText('Magnetic fusion: 0 used');
+  await expect(page.locator('.ahrs-magnetic-counts')).toContainText('Raw magnetic sensor unavailable');
   await expect(page.locator('.ahrs-diagnostic-readings')).toContainText('Heading σUnknown');
   await page.evaluate(() => window.dispatchEvent(new Event('test-magnetic-jump')));
   await page.clock.runFor(1100);
-  await expect(page.locator('.ahrs-magnetic-counts')).toContainText('innovation rejected');
+  await expect(page.locator('.ahrs-magnetic-counts')).toContainText('Magnetic fusion: 0 used');
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
   await page.clock.runFor(1000);
   await expect(page.locator('.ahrs-diagnostics')).toHaveCount(0);
@@ -448,7 +503,7 @@ for (const mode of ['no GPS', 'low speed', 'no GPS and sensor noise'] as const) 
     await expect(page.getByRole('progressbar', { name: 'Calibration progress' })).toHaveCount(0);
     const warning = mode === 'low speed' ? 'Low Speed' : 'No GPS';
     await expect(page.getByTestId('ahrs-cross')).toHaveText(warning);
-    await expect(page.locator('.ahrs-actions')).toContainText('gravity aiding active');
+    await expect(page.locator('.ahrs-actions')).toContainText(/Calibrated|Attitude remains visible/);
     await expect(page.locator('.ahrs-gps')).toHaveText(mode === 'low speed' ? 'GPS · low speed' : 'No GPS');
     const horizon = page.getByTestId('ahrs-moving-horizon');
     const before = await horizon.getAttribute('transform');
@@ -467,7 +522,7 @@ for (const mode of ['no GPS', 'low speed', 'no GPS and sensor noise'] as const) 
     await page.clock.runFor(1100);
     await expect(page.locator('.ahrs-gps')).toHaveText('GPS live');
     await expect(page.getByTestId('ahrs-cross')).toHaveCount(0);
-    await expect(page.locator('.ahrs-actions')).toContainText('gravity aiding active');
+    await expect(page.locator('.ahrs-actions')).toContainText(/Calibrated|Attitude remains visible/);
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
     expect(await countWatches(page)).toBe(0);
   });
@@ -690,10 +745,10 @@ for (const mode of ['unavailable at calibration', 'lost after calibration'] as c
     const uncertainty = page.getByTitle('Estimated tilt uncertainty (1σ)', { exact: true });
     expect(Number.parseFloat((await uncertainty.textContent())!)).toBeLessThan(6);
     await expect(page.getByTestId('ahrs-cross')).toHaveText('No GPS');
-    await expect(page.locator('.ahrs-actions')).toContainText('gravity aiding active');
+    await expect(page.locator('.ahrs-actions')).toContainText(/Calibrated|Attitude remains visible/);
     await page.locator('.ahrs-diagnostics summary').click();
-    await expect(page.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
-    await expect(page.locator('.ahrs-aiding-status')).toHaveClass(/is-aided/);
+    await expect(page.locator('.ahrs-aiding-status')).toHaveText('No GPS aid · No GPS');
+    await expect(page.locator('.ahrs-aiding-status')).not.toHaveClass(/is-aided/);
     const horizon = page.getByTestId('ahrs-moving-horizon');
     await expect(horizon).toBeVisible();
     const before = await horizon.getAttribute('transform');
@@ -730,7 +785,7 @@ test('confirmed calibration shares GPS, keeps attitude visible under GPS-loss X,
   expect(await countWatches(page)).toBe(1);
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-sensors')));
   await page.clock.runFor(12_000);
-  await expect(page.locator('.ahrs-actions')).toContainText('gravity aiding active');
+  await expect(page.locator('.ahrs-actions')).toContainText(/Calibrated|Attitude remains visible/);
   await expect(page.getByTestId('ahrs-cross')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('ahrs-calibrated.png') });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('test-ahrs-speed', { detail: 5 })));
@@ -774,7 +829,7 @@ test('Background freezes the AHRS display while calibration and motion processin
   expect(await tool.innerHTML()).toBe(calibrating);
   expect(await countWatches(page)).toBe(1);
   await page.getByRole('button', { name: 'Show AHRS toolbox', exact: true }).click();
-  await expect(page.locator('.ahrs-actions')).toContainText('gravity aiding active');
+  await expect(page.locator('.ahrs-actions')).toContainText(/Calibrated|Attitude remains visible/);
   await page.clock.runFor(100);
   await backgroundAhrs(page);
   await page.clock.runFor(100);
@@ -797,7 +852,7 @@ test('Background freezes the AHRS display while calibration and motion processin
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-gps-restored')));
   await page.clock.runFor(1100);
   await expect(page.getByTestId('ahrs-cross')).toHaveCount(0);
-  await expect(page.locator('.ahrs-actions')).toContainText('gravity aiding active');
+  await expect(page.locator('.ahrs-actions')).toContainText(/Calibrated|Attitude remains visible/);
   await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
   await page.clock.runFor(100);
@@ -807,7 +862,7 @@ test('Background freezes the AHRS display while calibration and motion processin
   expect(await countWatches(page)).toBe(0);
 });
 
-test('gravity fusion bounds uncertainty under Low Speed', async ({ page }) => {
+test('PX4 qualifies stationary corrections under Low Speed without claiming external tilt aid', async ({ page }) => {
   await page.clock.install();
   await openAhrs(page);
   await page.getByRole('button', { name: 'Calibrate', exact: true }).click();
@@ -818,19 +873,19 @@ test('gravity fusion bounds uncertainty under Low Speed', async ({ page }) => {
   await page.clock.runFor(36_000);
   const diagnostics = page.locator('.ahrs-diagnostics');
   await diagnostics.locator('summary').click();
-  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
-  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveClass(/is-aided/);
+  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Qualified for stationary corrections');
+  await expect(diagnostics.locator('.ahrs-aiding-status')).not.toHaveClass(/is-aided/);
   await expect(page.getByTestId('ahrs-cross')).toHaveText('Low Speed');
-  await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText(/[1-9]\d+ used/);
+  await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText('0 used');
   await page.clock.runFor(30_000);
-  await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText(/[1-9]\d+ used/);
+  await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText('0 used');
   expect(parseFloat(await diagnostics.locator('summary strong').innerText())).toBeLessThan(6);
-  await expect(diagnostics.locator('.ahrs-uncertainty-trend path.is-aided')).not.toHaveAttribute('d', '');
+  await expect(diagnostics.locator('.ahrs-uncertainty-trend path.is-unaided')).not.toHaveAttribute('d', '');
   await expect(page.getByTestId('hsi-heading')).toHaveCount(0);
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
 });
 
-test('gravity fusion keeps heading unverified while HSI shows GPS-assisted heading and guidance', async ({ page }, testInfo) => {
+test('PX4 keeps north unverified during steady motion while HSI shows GPS-assisted heading and guidance', async ({ page }, testInfo) => {
   await page.clock.install();
   await openAhrs(page);
   await page.getByRole('textbox', { name: 'Add route waypoint', exact: true }).fill('370000N1230000W 370000N1210000W');
@@ -840,8 +895,8 @@ test('gravity fusion keeps heading unverified while HSI shows GPS-assisted headi
   await page.clock.runFor(36_000);
   const diagnostics = page.locator('.ahrs-diagnostics');
   await diagnostics.locator('summary').click();
-  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
-  await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText(/[1-9]\d+ used/);
+  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Waiting for magnetic or heading evidence');
+  await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText('0 used');
   await expect(diagnostics.locator('.ahrs-fusion-counts')).toContainText('0 used');
   await expect(page.getByTestId('hsi-heading')).toBeVisible();
   // The vertical needle has a zero-width SVG bounding box when aligned with heading.
@@ -855,15 +910,15 @@ test('gravity fusion keeps heading unverified while HSI shows GPS-assisted headi
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-gps-lost')));
   await page.clock.runFor(4000);
-  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
+  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('No GPS aid · No GPS');
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-gps-restored')));
   await page.clock.runFor(23_000);
-  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
-  await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText(/[1-9]\d+ used/);
-  // Returning GPS does not interrupt gravity aiding while heading is unknown.
+  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Waiting for magnetic or heading evidence');
+  await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText('0 used');
+  // Returning steady GPS does not invent north alignment or sensor fusion.
   await page.clock.runFor(12_000);
-  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
-  await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText(/[1-9]\d+ used/);
+  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Waiting for magnetic or heading evidence');
+  await expect(diagnostics.locator('.ahrs-tilt-counts')).toContainText('0 used');
   await expect(page.getByTestId('hsi-invalid')).toHaveCount(0);
   await expect(page.getByTestId('hsi-heading-estimate')).toHaveText('Estimated heading');
   await expect(page.getByTestId('hsi-course')).toBeVisible();
@@ -871,7 +926,7 @@ test('gravity fusion keeps heading unverified while HSI shows GPS-assisted headi
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
 });
 
-test('uncertainty diagnostics show GPS convergence, gravity during outage and GPS recovery', async ({ page }, testInfo) => {
+test('uncertainty diagnostics show GPS convergence, coasting during outage and GPS recovery', async ({ page }, testInfo) => {
   await page.clock.install();
   await openAhrs(page);
   const diagnostics = page.locator('.ahrs-diagnostics');
@@ -885,14 +940,14 @@ test('uncertainty diagnostics show GPS convergence, gravity during outage and GP
   const uncertainty = diagnostics.getByTitle('Estimated tilt uncertainty (1σ)', { exact: true });
   const sigma = async () => Number.parseFloat((await uncertainty.textContent())!);
   const initial = await sigma();
-  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
+  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Waiting for GPS correction');
   await page.clock.runFor(15_000);
   const withGps = await sigma();
   expect(withGps).toBeLessThan(initial);
   const updates = diagnostics.locator('.ahrs-fusion-counts');
   await page.evaluate(() => window.dispatchEvent(new Event('test-ahrs-gps-lost')));
   await page.clock.runFor(4000);
-  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
+  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('No GPS aid · No GPS');
   const before = await updates.textContent();
   await page.clock.runFor(16_000);
   const withoutGps = await sigma();
@@ -904,12 +959,12 @@ test('uncertainty diagnostics show GPS convergence, gravity during outage and GP
   const recovered = await sigma();
   expect(recovered).toBeLessThan(withoutGps);
   expect(recovered).toBeLessThan(withGps + 0.2);
-  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('Gravity / acceleration aiding');
+  await expect(diagnostics.locator('.ahrs-aiding-status')).toHaveText('GPS aiding');
   await expect(updates).not.toHaveText(before!);
   const trend = diagnostics.getByRole('img', { name: 'Estimated tilt uncertainty over the last two minutes' });
   await expect(trend.locator('path.is-aided')).not.toHaveAttribute('d', '');
-  // Gravity continues aiding during this GPS outage; a transient unaided
-  // segment near startup depends on sampling phase, not on GPS availability.
+  // No external aiding is claimed during the outage. Fresh GPS restores it.
+  await expect(trend.locator('path.is-unaided')).not.toHaveAttribute('d', '');
   await expect(trend.locator('circle.is-aided')).toHaveCount(1);
   await testInfo.attach('tilt-uncertainty.json', {
     body: JSON.stringify({ initial, withGps, withoutGps, recovered }), contentType: 'application/json',
@@ -1062,7 +1117,7 @@ test('calibration and live attitude continue while the stow confirmation awaits 
   await expect(dialog).toBeVisible();
   await page.clock.runFor(10_000);
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(page.locator('.ahrs-actions')).toContainText('gravity aiding active');
+  await expect(page.locator('.ahrs-actions')).toContainText(/Calibrated|Attitude remains visible/);
   expect(await countWatches(page)).toBe(1);
   const horizon = page.getByTestId('ahrs-moving-horizon');
   const before = await horizon.getAttribute('transform');
@@ -1072,7 +1127,7 @@ test('calibration and live attitude continue while the stow confirmation awaits 
   expect(await horizon.getAttribute('transform')).not.toBe(before);
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.getByTestId('ahrs-cross')).toHaveCount(0);
-  await expect(page.locator('.ahrs-actions')).toContainText('gravity aiding active');
+  await expect(page.locator('.ahrs-actions')).toContainText(/Calibrated|Attitude remains visible/);
 });
 
 test('page visibility pauses instruments and automatically resumes the calibrated session', async ({ page }) => {
@@ -1099,7 +1154,7 @@ test('page visibility pauses instruments and automatically resumes the calibrate
     // motion uncertainty instead of racing the stream's next one-second tick.
     window.dispatchEvent(new CustomEvent('test-gps-position', { detail: { altitude: 3048, altitudeAccuracy: 10 } }));
     // The first returning reading ages the missing interval; subsequent
-    // readings can then correct tilt through gravity fusion.
+    // readings allow the restarted PX4 filter to rebuild its tilt confidence.
     window.dispatchEvent(new DeviceMotionEvent('devicemotion', {
       rotationRate: { alpha: 0, beta: 0, gamma: 0 },
       accelerationIncludingGravity: { x: 0, y: 9.80665, z: 0 }, interval: 20,
@@ -1113,7 +1168,7 @@ test('page visibility pauses instruments and automatically resumes the calibrate
   await expect(page.locator('.ahrs-setup')).toHaveCount(0);
   await expect(page.locator('.ahrs-diagnostics')).toHaveCount(1);
   await expect(page.getByTestId('ahrs-cross')).toHaveCount(0);
-  await expect(page.locator('.ahrs-actions')).toContainText('gravity aiding active');
+  await expect(page.locator('.ahrs-actions')).toContainText(/Calibrated|Attitude remains visible/);
   await expect(page.getByRole('img', { name: 'Ground speed: 120 knots', exact: true })).toBeVisible();
   const horizon = page.getByTestId('ahrs-moving-horizon');
   await expect(horizon).toBeVisible();
@@ -1359,7 +1414,9 @@ test('compact HSI follows the route, supports a selected leg, and flags lost GPS
   await expect(hsi.locator('.ahrs-hsi-reference')).toHaveText('TRK 077° M');
   await expect(hsi.locator('.ahrs-hsi-variation')).toHaveText(/TRUE HDG 075° T.*VAR 12.6° E/);
   await expect(page.getByTestId('hsi-true-north')).toHaveCount(0);
-  await expect(page.getByTestId('hsi-track')).toHaveAttribute('transform', /rotate\(15\)/);
+  // PX4 uses float state arithmetic; compare the bearing, not its decimal spelling.
+  await expect.poll(async () => Number((await page.getByTestId('hsi-track').getAttribute('transform'))
+    ?.match(/rotate\(([^)]+)\)/)?.[1])).toBeCloseTo(15, 3);
   await expect(page.getByTestId('hsi-invalid')).toHaveCount(0);
   expect(await countWatches(page)).toBe(1);
   const first = await page.getByTestId('hsi-deviation').getAttribute('transform');
@@ -1441,7 +1498,7 @@ test.describe('magnetic model recovery', () => {
     await page.evaluate(() => window.dispatchEvent(new Event('online')));
     await expect(hsi.locator('.ahrs-hsi-heading')).toHaveText('HSIIMU · MAG');
     await expect(hsi.locator('.ahrs-hsi-readout')).toHaveText('HDG 062° M');
-    await expect(page.locator('.ahrs-actions')).toContainText('gravity aiding active');
+    await expect(page.locator('.ahrs-actions')).toContainText(/Calibrated|Attitude remains visible/);
     expect(await countWatches(page)).toBe(1);
   });
 });

@@ -47,7 +47,7 @@ export const createMotionSensor: MotionFactory = (mount, onSample, onIssue, magn
       }).requestPermission;
       // Called directly from the confirmation button to retain iOS user activation.
       const motionPermission = request ? request.call(DeviceMotionEvent) : Promise.resolve('granted');
-      // Both requests begin in the same user gesture. Compass failure is optional.
+      // Raw magnetometer access is optional; no OS-orientation permission is requested.
       void compass?.start().catch(() => magnetic?.issue('Magnetic sensing unavailable; IMU and GPS continue'));
       const permission = await motionPermission.catch(error => { compass?.stop(); throw error; });
       if (session !== generation) return;

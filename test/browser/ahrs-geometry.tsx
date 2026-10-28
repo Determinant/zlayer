@@ -15,7 +15,9 @@ import model from '../fixtures/magnetic-model.json';
 if (!isMagneticModel(model)) throw new Error('Invalid magnetic model fixture');
 const magneticModel = model;
 const route = createRouteResolver([])('370000N1230000W 370000N1210000W');
-const attitude = new Ahrs().getState(0);
+const filter = new Ahrs();
+const attitude = filter.getState(0);
+filter.dispose();
 const rolls = [-180, -120, -90, -60, -45, -30, -15, 0, 15, 30, 45, 60, 90, 120, 180];
 const state = (heading: number, position: Position): AhrsSnapshot => ({
   phase: 'ready', crossed: false, warning: '', message: '', calibrationReason: 'ready', progress: 1,

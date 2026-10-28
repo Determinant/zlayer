@@ -8,9 +8,12 @@ Disabling Routes removes route guidance while AHRS and its independent GPS lease
 
 This folder owns the estimator, browser motion adapter, calibration, attitude and
 GPS instruments, HSI, controls and local recordings. It has no runtime or build
-dependency on the standalone `zlayer-ahrs` repository. The entire tool, including
-`estimator/`, uses the project's [AGPL-3.0-only license](../../../LICENSE).
-Estimator copyright (c) 2026 zlayer-ahrs contributors.
+dependency on the standalone `zlayer-ahrs` repository. ZLayer code uses the project's
+[AGPL-3.0-only license](../../../LICENSE). The live estimation core vendors
+[PX4 EKF2 v1.17.0](estimator/px4/README.md) under its retained BSD-3-Clause
+notices; the shipped [third-party notice](../../../public/licenses/px4.txt) covers the binary.
+Offline replay requires the matching estimator revision; see the
+[recording contract](recording.md#offline-estimator-replay).
 The tool is experimental and has not been validated in flight.
 
 ## Contents
@@ -24,12 +27,9 @@ The tool is experimental and has not been validated in flight.
 - [Relative magnetic fusion](#relative-magnetic-fusion)
 - [Verification](#verification)
 
-Detailed equations live in [gravity/acceleration fusion](estimator/gravity-aiding.md),
-[heading acquisition](estimator/heading-alignment.md),
-[GPS aiding before north alignment](estimator/velocity-change.md),
-[magnetic fusion and calibration](estimator/magnetic-fusion.md) and
-[uncertainty](estimator/uncertainty.md). See [validation](validation.md) for numerical
-evidence and remaining checks, and [recordings](recording.md) for capture/replay.
+The [PX4 port guide](estimator/px4/README.md) owns the upstream pin, browser
+capabilities, patches, build and estimation strategy. See [validation](validation.md)
+for checks and unresolved evidence gaps, and [recordings](recording.md) for capture/replay.
 
 ## Display principles
 
@@ -109,7 +109,7 @@ map heading still needs it. A separate
 map GPS consumer can continue tracking, but cannot leave old GPS values displayed
 as live in AHRS. A fault retains the last available HSI heading under its warning;
 stopping or starting a new calibration clears that reference and releases the old
-estimator replay history. Once calibration is applied, its raw IMU/GPS window is discarded; the
+delayed estimator history. Once calibration is applied, its raw IMU/GPS window is discarded; the
 estimator retains the resulting trim and bias. Stowing with **Background** and
 temporary sensor pauses preserve the running estimator.
 Temporary motion pauses keep the session, including when returning from a hidden
@@ -242,10 +242,11 @@ largest tilt standard deviation in degrees; it is only part of overall attitude
 uncertainty. Expand it for a two-minute trend,
 roll/pitch/local-yaw/heading standard deviations, separate sensor aiding and heading
 alignment status, correction ages, and used/rejected GPS update counts. Green trend
-segments mark recent gravity, raw magnetic vector, or GPS aiding; amber segments
-mark propagation without those tilt-capable corrections. Compass-only aiding can
-still support yaw during an amber segment. GPS availability alone does not set the
-uncertainty or the trend color. These are model estimates (1σ), not measured
+segments mark recent raw magnetic vector or GPS aiding. Amber marks no external
+tilt aid; heading-only magnetics and PX4's
+internal no-aiding constraints can still operate. Optional gravity fusion also
+counts if explicitly enabled. GPS availability alone does not set the uncertainty
+or the trend color. These are model estimates (1σ), not measured
 attitude error or guaranteed bounds; fixed mounting/zero-reference error is
 excluded. Local yaw uncertainty is shown separately from unknown absolute
 heading; a stable relative reference does not imply true north.
@@ -426,11 +427,8 @@ freeze calibrated, live attitude. This applies to the first calibration without
 GPS, later GPS loss, and prolonged operation without GPS aiding. The same policy
 applies in the toolbox and full screen.
 
-Numerical integrity and navigation validity are checked separately. If unaided
-integrated velocity leaves the supported range, only navigation and its replay
-history restart. Attitude, bias estimates and their full covariance marginal
-remain intact; the restart neither improves the reported uncertainty nor
-reapplies an initial heading. Fresh GPS can establish a new navigation reference.
+PX4 owns navigation limits, innovation gating, aiding timeouts and resets.
+The browser adapter reports its accepted observations and estimated uncertainty.
 Non-finite filter state or invalid covariance still requires recalibration. This
 failure takes priority over a sensor pause or unusable reading: the attitude stays
 hidden beneath **Calibration**, without promising automatic recovery. On the next
@@ -512,119 +510,63 @@ across restarts; recordings preserve diagnostics, not a resumable estimator sess
 
 ### Tilt aiding and heading acquisition
 
-A known **true heading from an independent instrument** is optional and is used
-once during calibration to initialize direction. It is never reapplied as a
-continuing heading measurement. Without it, `MotionHeading` matches time-aligned
-IMU and GPS velocity histories to establish direction before enabling full GPS velocity fusion.
-GPS ground track is never used as a trusted nose-heading measurement in that
-navigation filter; the HSI's provisional GPS/gyro reference is separate. Before north
-alignment, the main filter uses the magnitude of horizontal velocity changes,
-direct vertical velocity when supplied, and altitude. The horizontal factor uses
-non-overlapping endpoint pairs over 2–15 seconds and preserves direction ambiguity.
-It supports intermittent GPS during near-steady flight; see
-[velocity-change.md](estimator/velocity-change.md).
+Live estimation runs the pinned PX4 C++ EKF in WebAssembly, including its coning
+integrator, IMU downsampling, error-state covariance, delayed aiding, output
+predictor, gyro/accelerometer bias learning, gravity fusion and GNSS yaw GSF.
+Gyros and specific force are integrated at their delivered timestamps. There is
+no added low-pass filter on final attitude and no assumption that a real bank or
+pitch change cannot happen within one second. See the [port guide](estimator/px4/README.md).
 
-The default estimator jointly tracks position, velocity, attitude, sensor biases,
-persistent and transient world acceleration, and a relative magnetic field.
-Gyros drive attitude propagation. Every fresh accelerometer sample is an
-observation of gravity plus kinematic acceleration; GPS velocity constrains the
-integral of that same acceleration. Both can correct simultaneously without
-counting accelerometer input twice. Rejected GPS fixes cannot pause gravity aiding.
+The final second of actual calibration samples primes the delayed buffers before
+live operation; this history is recorded for exact replay. Startup and recovery
+fill matching IMU/output histories with real samples before delayed prediction,
+while the output predictor follows current motion. Each buffered interval is
+predicted once, with its actual duration. A known independent
+true heading optionally initializes yaw once. Otherwise PX4's GNSS/inertial yaw
+estimator needs suitable motion and GPS health. Its GPS qualification takes ten
+seconds after the filter starts receiving fixes. Track is never injected as
+trusted nose heading. The HSI's provisional GPS/gyro display reference uses PX4's
+unaided-yaw increments and remains separate from north alignment in the EKF.
 
-Short-period accelerometer scatter increases observation variance so vibration
-does not force false tilt or gyro-bias corrections. Time-aware 0.25-second sensor
-means and a 0.5-second residual-energy average use every delivered sample. They
-do not replace raw motion inputs, introduce an attitude dead band, or reduce the
-configured noise floor. Smoothed force/rate also qualify post-gap gravity recovery;
-the actual observation and its timestamp remain unchanged. Sensor clipping,
-aliasing before browser delivery and vibration-induced DC bias are not repaired
-by this software. See [gravity-aiding.md](estimator/gravity-aiding.md) for the model
-and [validation](validation.md#v7-vibration-and-hsi-regressions) for the synthetic limits.
+PX4's default IMU control mask leaves optional gravity-vector fusion disabled.
+Its conventional inertial navigation model supplies attitude corrections from
+GNSS and other qualified aids. Internal no-aiding constraints stabilize the
+unsupported navigation states; they do not prove that an aircraft is stationary.
+This replaces v7's persistent and
+transient acceleration states, covariance-intersection compass update and separate
+trajectory fitting. The previous implementation and rationale remain in [Git history](https://github.com/Determinant/zlayer/blob/52507ff98ef50d7a3b08a87e98cf9ab13154e845/src/layers/ahrs/README.md).
 
-A persistent acceleration component with a slow random walk preserves
-sustained-acceleration/tilt ambiguity while allowing previous acceleration
-estimates to change. A separate Gauss–Markov transient models faster changes.
-Its process uncertainty increases with sustained rotation, allowing maneuver
-acceleration without weakening steady-flight correction by the same amount.
-The rate average attenuates alternating angular vibration; it does not assert
-that the aircraft is level or assign acceleration from rotation.
-Quiet samples do not prove zero acceleration, and
-accelerometer-bias learning requires accepted GPS evidence. See
-[gravity-aiding.md](estimator/gravity-aiding.md) for the equations and assumptions.
-The explicit `gravityAiding: false` option retains conventional strapdown INS
-without gravity observations. The PWA forwards GPS altitude and its accuracy as
-well as speed/track; receiving a fix alone does not establish navigation-filter
-north alignment or active aiding, although usable track can seed the HSI reference.
-
-Raw magnetic observations can constrain accumulated attitude drift, including
-relative yaw, without GPS. Gravity alone still leaves yaw unobservable. Absolute
-heading remains explicitly unknown (`attitudeStd[2] = Infinity`) until alignment;
-`relativeYawStd` separately reports uncertainty in the local-frame yaw. No aid
-makes mounting error, sustained acceleration or magnetic interference disappear.
-
-The coarse alignment retains at most 20 seconds of observations, sampled at no
-more than 1 Hz. It removes constant offset and linear drift, then fits a horizontal
-rotation. Thus constant wind, constant speed, or constant acceleration alone cannot
-create a heading estimate. At least eight observations, motion above receiver noise,
-agreement in shape and scale, and three consistent estimates are required. Tilt
-uncertainty must remain below 10°. A generalized least-squares fit carries the full
-inter-sample inertial covariance, estimates offset/linear drift as nuisance
-parameters, and includes correlation with current yaw when transporting heading.
-The resulting heading standard deviation must be no larger than 20°. This is a conservative model-based gate, not a validated
-accuracy bound. Missing/poor GPS and gaps restart evidence collection. The general
-observability requirement is also described in
-[PX4's navigation-filter documentation](https://docs.px4.io/main/en/advanced_config/tuning_the_ecl_ekf).
-
-Once aligned, the existing ESKF applies GPS velocity corrections, including delayed
-measurement replay. Alignment is not permanent: excessive heading uncertainty or
-an unsupported attitude correction releases it for fresh acquisition, preserving
-tilt/bias/reference estimates and their joint uncertainty. Gravity and magnetic
-aids continue during recovery when their observations are usable. Rejected GPS observations can also establish a new heading
-through an independent inertial trajectory and motion fit. Accepted velocity
-observations end that evidence window; altitude corrections can continue without
-contaminating it. Source history and current validity are reported separately.
-The transition rules and covariance transfer are documented in
-[heading-alignment.md](estimator/heading-alignment.md).
-Coarse alignment uses only subsequent GPS fixes for velocity fusion.
-Without enough heading evidence, attitude remains relative. Without a usable form
-of tilt/velocity aiding, uncertainty grows. Steady IMU evidence can bound tilt
-through GPS loss; heading uncertainty remains separate. The app forwards reliable GPS velocity at every speed;
-the movement gate still applies to heading acquisition and the flight display warning.
-Gravity/magnetic corrections, yaw-independent GPS evidence, and aligned GPS
-velocity corrections constrain tilt without clamping its covariance. Receiving a fix alone does not claim active aiding.
+Use the same calibration and continuous estimation flow on the ground and in
+flight. Calibration estimates gyro bias; qualified aids support subsequent EKF
+bias estimation. There is no ground/moving switch. Fresh GPS speed, smoothed over
+two seconds, and IMU evidence automatically qualify landed and rest separately.
+GPS evidence takes effect at its acquisition time in the IMU stream, preserving
+qualification while older motion callbacks are still queued.
+Poor fixes and source failures explicitly invalidate prior evidence; they are
+recorded for replay even when they cannot supply a navigation measurement.
+Only qualified rest enables PX4's zero-rate and zero-velocity constraints;
+missing GPS or detected motion releases rest. See the
+[qualification rules and limitations](estimator/px4/README.md#automatic-ground-qualification).
 
 ### Relative magnetic fusion
 
-The optional input uses platform-calibrated XYZ fields where available, with
-absolute browser orientation and Safari compass fallbacks. The raw-field model
-compares each vector with a persistent world reference and estimates body magnetic
-bias jointly. Accepted observations can correct accumulated attitude error and
-observable biases. Full-vector correction requires qualified magnetic evidence
-and recent tilt aiding; calibration learning additionally requires rotation diversity.
-A provisional reference must remain stable for two seconds before its current
-reading seeds the reference with shared attitude covariance, so it
-cannot invent north or erase preexisting alignment uncertainty.
+Only platform-calibrated XYZ magnetometer measurements enter PX4, converted from
+µT to gauss. Upstream qualification, field checks and magnetic-bias estimation
+apply. A raw magnetic alignment alone is not exposed as verified true heading by
+the app. Geographic heading still requires a current independent supplied heading
+or GNSS/inertial alignment. Magnetic re-alignment revokes any previous
+manual/GNSS heading validity.
 
-OS-fused orientation and scalar compass readings have a separate heading-only
-update using covariance intersection for unknown shared IMU errors. It can
-conservatively inflate other uncertainties; it cannot directly move pitch/roll or
-navigation. An update must improve attitude variance and a fixed covariance cost
-including retained calibration and acceleration states. Qualified nonlinear
-reacquisition is available for both raw vectors and heading-only observations.
-Source switching,
-field strength, innovation, geometry and accuracy checks protect the update;
-rejected disturbances do not automatically replace its reference. Slowly changing
-interference and orientation-dependent distortion remain limitations. Ordinary
-motion gaps retain the reference, and delayed samples replay at acquisition time.
+If magnetics initialize yaw first, a converged, agreeing GNSS/inertial yaw
+estimate can establish verified north through PX4's yaw reset. Once yaw is
+aligned, the browser port disables PX4's synthetic zero-innovation heading
+constraint so uncertainty can grow during unaided operation.
 
-No mandatory figure-eight step is added. A constant heading offset is absorbed by
-the relative reference; orientation-dependent magnetic distortion is not. Online
-body-bias estimation needs sufficient motion and does not replace platform or
-installation calibration. The **Uncertainty** details show local-yaw uncertainty,
-source activity, accepted/rejected counts and rejection reasons. Recordings use
-model identifier `kinematic-ahrs-v7` and a 30×30 joint covariance. See
-[magnetic-fusion.md](estimator/magnetic-fusion.md) for the equations, browser
-limitations, calibration policy, timing and validation status.
+Live sensing requests only the raw magnetic sensor; it does not request OS-compass
+permission or attach orientation listeners. Historical recordings retain those
+source labels and require their original estimator revision for replay.
+Magnetic interference and hardware calibration remain installation concerns;
+this port does not add a mandatory figure-eight step.
 
 ### Validity flags and device limits
 
@@ -691,16 +633,13 @@ OS/browser batching before event creation remains a device-validation requiremen
 For an actual gap above 250 ms, the app's `recoverAfterGap` option starts a fresh
 integration interval at the next sample, preserving attitude, mount trim and bias.
 It does not extrapolate the last gyro reading across the gap or reset to level.
-Navigation/replay history and heading confidence are discarded. Each attitude axis
-receives additional variance corresponding to 30°/s times the missed duration,
-capped at 90° per gap. This is an engineering allowance for unknown motion; it can
-leave **Uncertainty** visible while the instrument continues working. Fresh
-gravity and magnetic observations can constrain drift before GPS returns. The
-magnetic reference persists; GPS navigation and north alignment must be rebuilt. The reusable estimator defaults to requiring a reset
-on a gap unless this option is enabled; recordings include the app's actual options.
-Retained sensor biases and magnetic-reference uncertainty age by their configured
-random walks throughout the gap. Kinematic acceleration uncertainty ages too;
-keeping the calibrated means does not keep their old confidence indefinitely.
+Navigation, magnetic history and heading confidence are discarded. The adapter
+starts a new PX4 instance with the retained pose and both sensor-bias means;
+cross-covariances are restarted. Tilt uncertainty is at least its previous bound
+and the engineering allowance of 30°/s times the missed duration, capped at 90°.
+This allowance is not measured missing motion. Fresh aiding must rebuild confidence.
+The reusable estimator latches an interruption unless `recoverAfterGap` is enabled;
+the app enables it and records that option.
 
 ## Verification
 

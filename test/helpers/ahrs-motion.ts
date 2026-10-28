@@ -1,4 +1,3 @@
-import { cholesky } from '../../src/layers/ahrs/estimator/linalg';
 import type { GpsFix, ImuSample } from '../../src/layers/ahrs/estimator/types';
 
 // Independent analytic coordinated turn with a constant crosswind; no estimator
@@ -49,8 +48,8 @@ export function turn(time: number, heading = 0) {
   };
 }
 
-/** Exact yaw gauges, deterministic reference seeds and velocity clones make the
- * joint covariance semidefinite. Regularization here is a checking tolerance;
+/** Deterministic state components can make covariance semidefinite.
+ * Regularization here is a checking tolerance;
  * it never changes the estimator or the covariance being asserted. */
 export function covarianceIsPsd(covariance: Float64Array, dimension: number): boolean {
   if (covariance.length !== dimension * dimension || !covariance.every(Number.isFinite)) return false;
@@ -62,5 +61,15 @@ export function covarianceIsPsd(covariance: Float64Array, dimension: number): bo
     for (let j = 0; j < dimension; j++) if (Math.abs(covariance[i * dimension + j]! - covariance[j * dimension + i]!) >
       1e-12 * Math.max(1, Math.abs(covariance[i * dimension + j]!))) return false;
   }
-  return cholesky(checked, dimension) !== null;
+  // Independent test-only Cholesky check; no estimator implementation dependency.
+  const lower = new Float64Array(checked.length);
+  for (let i = 0; i < dimension; i++) for (let j = 0; j <= i; j++) {
+    let sum = checked[i * dimension + j]!;
+    for (let k = 0; k < j; k++) sum -= lower[i * dimension + k]! * lower[j * dimension + k]!;
+    if (i === j) {
+      if (!(sum > 0) || !Number.isFinite(sum)) return false;
+      lower[i * dimension + j] = Math.sqrt(sum);
+    } else lower[i * dimension + j] = sum / lower[j * dimension + j]!;
+  }
+  return true;
 }

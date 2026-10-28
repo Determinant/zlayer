@@ -92,6 +92,8 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
   let generation = 0, lastFix = -Infinity, lastImu = -Infinity;
   let phase: Phase = 'idle', message = '', heading: number | undefined;
   let hasAlignment = false;
+  let disposed = false;
+  let calibrationImu: ImuSample[] = [];
   let motionIssue = false;
   let magneticMessage = '';
   let visible = true;
@@ -179,14 +181,20 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     if (visible && releaseGps && mode === 'instruments') timer = setInterval(publish, 50);
   };
   const observeGps = () => {
-    const { fix, time, live, usable } = gpsState();
-    recordSensor('gps', { ...gps.getSnapshot(), time,
-      forwarded: !!fix && time > lastFix && time <= environment.now() + .1 && filterActive() && live });
-    if (fix && time > lastFix && time <= environment.now() + 0.1) {
+    const { fix, time, usable } = gpsState(), source = gps.getSnapshot(), now = environment.now();
+    const newFix = !!fix && source.state === 'tracking' && time > lastFix && time <= now + .1;
+    const forwarded = newFix && filterActive();
+    const invalidated = filterActive() && (source.state !== 'tracking' || !fix);
+    recordSensor('gps', { ...source, time: invalidated ? now : time, forwarded, invalidated });
+    if (invalidated) filter.gpsUnavailable(now);
+    if (newFix) {
       lastFix = time;
       const sample = { time, accuracy: fix.accuracy, speed: fix.speed, track: fix.track, estimated: fix.estimated };
       if (phase === 'calibrating') alignment.observeGps(sample);
-      if (filterActive() && live) filter.updateGps({ ...sample, altitude: fix.altitude ?? null, altitudeAccuracy: fix.altitudeAccuracy ?? null });
+      // The estimator must see rejected evidence too, so stale rest/health
+      // qualification cannot survive a new poor or incomplete observation.
+      if (forwarded) filter.updateGps({ ...sample, coordinates: fix.coordinates,
+        altitude: fix.altitude ?? null, altitudeAccuracy: fix.altitudeAccuracy ?? null });
       const attitude = filterActive() ? filter.getState(environment.now()) : null;
       if (attitude) headingReference.observeAttitude(attitude, environment.now());
       if (usable && (filterActive() || heading === undefined)) {
@@ -231,23 +239,29 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
       message = '';
       motionIssue = false;
       if (phase === 'calibrating') {
+        calibrationImu.push({ ...value, gyro: [...value.gyro], specificForce: [...value.specificForce] });
+        while (calibrationImu[0]!.time < value.time - 1) calibrationImu.shift();
         alignment.observeImu(value);
         const candidate = alignment.snapshot(environment.now()).solution;
         if (candidate) {
-          recorder.record('alignment', environment.now(), { solution: candidate, trueHeading: heading ?? null });
+          recorder.record('alignment', environment.now(), { solution: candidate, trueHeading: heading ?? null, imuHistory: calibrationImu });
           trim = candidate.levelTrim;
-          filter = createFilter();
+          filter.dispose(); filter = createFilter();
           const bias = rotate(trim, candidate.gyroBias);
           filter.setGyroBias(bias, candidate.gyroBiasStd);
-          filter.update({ time: candidate.time, gyro: bias, specificForce: rotate(trim, candidate.specificForce) });
+          filter.setInitialAttitude([1, 0, 0, 0]);
+          // Prime PX4's delayed IMU/output buffers with real calibration data.
+          // This recorded tail completes the bridge's warmup before live output.
+          for (const sample of calibrationImu) filter.update({ time: sample.time,
+            gyro: rotate(trim, sample.gyro), specificForce: rotate(trim, sample.specificForce) });
+          calibrationImu = [];
           if (heading !== undefined) filter.alignHeading(heading);
           if (magneticMessage) filter.magneticUnavailable(magneticMessage);
           // The applied trim/bias own the calibration result. Its raw window is
           // no longer needed for display reads or subsequent GPS observations.
           alignment.reset();
           hasAlignment = true;
-          headingReference.observeImu({ time: candidate.time, gyro: bias, specificForce: rotate(trim, candidate.specificForce) },
-            filter.getState(environment.now()), environment.now());
+          headingReference.observeImu(candidate.time, filter.getState(environment.now()), environment.now());
           phase = 'ready';
           message = '';
           lastFix = -Infinity;
@@ -265,7 +279,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
         }
         const corrected = { time: value.time, gyro: rotate(trim, value.gyro), specificForce: rotate(trim, value.specificForce) };
         const attitude = filter.update(corrected);
-        headingReference.observeImu(corrected, attitude, environment.now());
+        headingReference.observeImu(corrected.time, attitude, environment.now());
         // A latched numerical fault cannot use more motion. Keep GPS instruments
         // and the last reference available; explicit diagnostic recording may
         // still need raw sensor input until capture stops.
@@ -313,7 +327,9 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     phase = 'idle'; hasAlignment = false; message = ''; motionIssue = false;
     // Sensor demand and recording demand have independent owners. Resetting
     // automatic heading must not end a recording prepared for calibration.
-    filter.reset();
+    // Plugin disable releases native memory; re-enabling may reuse this layer.
+    if (disposed) { filter = createFilter(); disposed = false; }
+    else filter.reset();
     headingReference.reset();
     alignment.reset();
     store.publish(initial());
@@ -356,7 +372,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     mode = 'heading';
     // Automatic gravity initialization has no confirmed level pose or measured
     // gyro bias. Preserve that uncertainty; GPS seeds only a display reference.
-    filter = new Ahrs({ ...estimatorOptions, initialTiltStd: 15 });
+    filter.dispose(); filter = new Ahrs({ ...estimatorOptions, initialTiltStd: 15 });
     trim = [1, 0, 0, 0]; heading = undefined; automaticTrimPending = true;
     lastImu = lastFix = -Infinity;
     magneticMessage = '';
@@ -386,7 +402,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
         units: { time: 'monotonic seconds', gyro: 'rad/s', specificForce: 'm/s²', attitude: 'degrees',
           position: '[longitude, latitude] degrees', altitude: 'meters' },
         frames: { sample: 'body forward/right/down before level trim', raw: 'browser device axes before polarity/mount correction',
-          covariance: 'row-major 30×30: position, velocity, local attitude error (radians), accelerometer bias, gyro bias, persistent world acceleration, world magnetic reference, body magnetic bias, transient world acceleration, cloned endpoint velocity; magnetic units are fractions of the initial field norm' },
+          covariance: 'row-major 24×24 PX4 tangent state: attitude error (radians), velocity, position, gyro bias, accelerometer bias, earth magnetic field (gauss), body magnetic bias (gauss), horizontal wind, terrain' },
         mount, trueHeading: heading ?? null, trim, visible, snapshot: readSnapshot(),
         covariance: hasAlignment ? Array.from(filter.getCovariance()) : null });
     },
@@ -402,12 +418,14 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     async calibrate(nextMount: Mount = 'upright', trueHeading?: number) {
       if (trueHeading !== undefined && (!Number.isFinite(trueHeading) || trueHeading < 0 || trueHeading >= 360)) return;
       mount = nextMount;
+      calibrationImu = [];
       recorder.record('calibrate', environment.now(), { mount, trueHeading: trueHeading ?? null });
       const session = release();
       if (session !== generation) return;
       mode = 'instruments'; automaticTrimPending = false;
       phase = 'requesting'; message = ''; hasAlignment = false; motionIssue = false;
-      filter = createFilter();
+      filter.dispose(); filter = createFilter();
+      disposed = false;
       headingReference.reset(trueHeading, environment.now());
       magneticMessage = '';
       lastImu = lastFix = -Infinity;
@@ -418,6 +436,7 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
     },
     retryGps: () => gps.retry(),
     stop() {
+      if (disposed) return;
       // Instrument teardown must not restart an already automatic map session.
       stopRecording();
       if (mode === 'heading') return;
@@ -425,10 +444,13 @@ export function createAhrsLayer(gps: AhrsGpsSource, environment: Environment = {
       else resetSession();
     },
     dispose() {
+      if (disposed) return;
       stopRecording();
       publishHeading(true);
       for (const release of headingLeases) release();
       resetSession();
+      filter.dispose();
+      disposed = true;
     },
   };
 }

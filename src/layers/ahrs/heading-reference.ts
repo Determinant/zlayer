@@ -1,5 +1,5 @@
-import { integrate, RAD, sub, toEuler, wrap } from './estimator/math';
-import type { Attitude, ImuSample } from './estimator/types';
+import { RAD, wrap } from './estimator/math';
+import type { Attitude } from './estimator/types';
 import { DEFAULTS } from './estimator/ahrs';
 
 export type HsiHeading = { degrees: number; source: 'gps' | 'ahrs' };
@@ -12,7 +12,7 @@ const aligned = (attitude: Attitude | null) => attitude?.headingStatus === 'trac
  * ground track into a trusted heading measurement in the navigation filter. */
 export class HeadingReference {
   private carrier = 0;
-  private previous: { sample: ImuSample; attitude: Attitude } | null = null;
+  private previous: { time: number; attitude: Attitude } | null = null;
   private history: { time: number; angle: number }[] = [];
   private correction: { time: number; from: number; to: number; source: HsiHeading['source'] } | null = null;
   private pending: { time: number; track: number } | null = null;
@@ -40,23 +40,22 @@ export class HeadingReference {
     this.correction = { time: now, from: this.correction ? from : to, to, source };
   }
 
-  observeImu(sample: ImuSample, attitude: Attitude, now: number): void {
+  observeImu(time: number, attitude: Attitude, now: number): void {
     const previous = this.previous;
-    if (previous && sample.time <= previous.sample.time) return;
+    if (previous && time <= previous.time) return;
     if (previous) {
-      const dt = sample.time - previous.sample.time;
+      const dt = time - previous.time;
       if (dt <= DEFAULTS.maxGap && Math.abs(Math.cos(previous.attitude.pitch * RAD)) >= .1 &&
-        Math.abs(Math.cos(attitude.pitch * RAD)) >= .1 && attitude.status !== 'interrupted') {
-        // Propagate using the filter's calibrated tilt and bias, without copying
-        // yaw jumps caused by acquiring/replacing its navigation frame.
-        const predicted = toEuler(integrate(previous.attitude.quaternion,
-          sub(previous.sample.gyro, previous.attitude.bias), dt));
-        this.carrier += difference(predicted.yaw / RAD, previous.attitude.yaw);
+        Math.abs(Math.cos(attitude.pitch * RAD)) >= .1 && attitude.status !== 'interrupted' &&
+        Number.isFinite(attitude.unaidedYaw) && Number.isFinite(previous.attitude.unaidedYaw)) {
+        // PX4 already integrated these readings with bias and coning correction.
+        // Its unaided yaw excludes navigation-frame resets and aiding jumps.
+        this.carrier += difference(attitude.unaidedYaw!, previous.attitude.unaidedYaw!);
       } else this.history = []; // Never interpolate or integrate through a motion gap.
     }
-    this.previous = { sample, attitude };
-    this.history.push({ time: sample.time, angle: this.carrier });
-    while (this.history.length > 1 && this.history[1]!.time < sample.time - 3) this.history.shift();
+    this.previous = { time, attitude };
+    this.history.push({ time, angle: this.carrier });
+    while (this.history.length > 1 && this.history[1]!.time < time - 3) this.history.shift();
     this.observeAttitude(attitude, now);
     this.applyGps(now);
   }

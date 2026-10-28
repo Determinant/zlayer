@@ -1,0 +1,270 @@
+--- a/src/modules/ekf2/EKF/aid_sources/gnss/gnss_checks.cpp
++++ b/src/modules/ekf2/EKF/aid_sources/gnss/gnss_checks.cpp
+@@ -42,15 +42,16 @@
+ {
+ bool GnssChecks::run(const gnssSample &gnss, uint64_t time_us)
+ {
+-	// assume failed first time through
+-	if (_time_last_fail_us == 0) {
++	// Browser: missing updates cannot count as continuous good health.
++	if (_time_last_fail_us == 0
++	    || gnss.time_us > lat_lon_prev.getProjectionReferenceTimestamp() + 2 * GNSS_MAX_INTERVAL) {
+ 		_time_last_fail_us = time_us;
+ 	}
+ 
+ 	bool passed = false;
+ 
+ 	if (_initial_checks_passed) {
+-		if (runSimplifiedChecks(gnss)) {
++		if (gnss.quality_valid && runSimplifiedChecks(gnss)) {
+ 			_time_last_pass_us = time_us;
+ 			passed = isTimedOut(_time_last_fail_us, time_us, math::max((uint64_t)1e6, (uint64_t)_params.min_health_time_us / 10));
+ 
+@@ -59,7 +60,7 @@
+ 		}
+ 
+ 	} else {
+-		if (runInitialFixChecks(gnss)) {
++		if (gnss.quality_valid && runInitialFixChecks(gnss)) {
+ 			_time_last_pass_us = time_us;
+ 
+ 			if (isTimedOut(_time_last_fail_us, time_us, (uint64_t)_params.min_health_time_us)) {
+--- a/src/modules/ekf2/EKF/aid_sources/gnss/gnss_height_control.cpp
++++ b/src/modules/ekf2/EKF/aid_sources/gnss/gnss_height_control.cpp
+@@ -67,7 +67,7 @@
+ 		const float measurement = gnss_alt;
+ 		const float measurement_var = sq(noise);
+ 
+-		const bool measurement_valid = PX4_ISFINITE(measurement) && PX4_ISFINITE(measurement_var);
++		const bool measurement_valid = gps_sample.height_valid && PX4_ISFINITE(measurement) && PX4_ISFINITE(measurement_var);
+ 
+ 		// GNSS position, vertical position GNSS measurement has opposite sign to earth z axis
+ 		updateVerticalPositionAidStatus(aid_src,
+--- a/src/modules/ekf2/EKF/aid_sources/gnss/gps_control.cpp
++++ b/src/modules/ekf2/EKF/aid_sources/gnss/gps_control.cpp
+@@ -122,6 +122,7 @@
+ void Ekf::controlGnssVelFusion(estimator_aid_source3d_s &aid_src, const bool force_reset)
+ {
+ 	const bool continuing_conditions_passing = (_params.ekf2_gps_ctrl & static_cast<int32_t>(GnssCtrl::VEL))
++			&& _gps_sample_delayed.horizontal_velocity_valid
+ 			&& _control_status.flags.tilt_align
+ 			&& _control_status.flags.yaw_align
+ 			&& !_control_status.flags.gnss_fault
+@@ -177,7 +178,7 @@
+ 
+ void Ekf::controlGnssPosFusion(estimator_aid_source2d_s &aid_src, const bool force_reset)
+ {
+-	const bool gnss_pos_enabled = (_params.ekf2_gps_ctrl & static_cast<int32_t>(GnssCtrl::HPOS));
++	const bool gnss_pos_enabled = _gps_sample_delayed.position_valid && (_params.ekf2_gps_ctrl & static_cast<int32_t>(GnssCtrl::HPOS));
+ 
+ 	const bool continuing_conditions_passing = gnss_pos_enabled
+ 			&& _control_status.flags.tilt_align
+@@ -319,6 +320,13 @@
+ 			      getVelocityVariance() + vel_obs_var,  // innovation variance
+ 			      innovation_gate);                     // innovation gate
+ 
++	// A missing browser vertical velocity is never an observation or a gate.
++	if (!gnss_sample.vertical_velocity_valid) {
++		aid_src.innovation[2] = 0.f;
++		aid_src.test_ratio[2] = aid_src.test_ratio_filtered[2] = 0.f;
++		aid_src.innovation_rejected = (aid_src.test_ratio[0] > 1.f || aid_src.test_ratio[1] > 1.f);
++	}
++
+ 	// vz special case if there is bad vertical acceleration data, then don't reject measurement if GNSS reports velocity accuracy is acceptable,
+ 	// but limit innovation to prevent spikes that could destabilise the filter
+ 	bool bad_acc_vz_rejected = _fault_status.flags.bad_acc_vertical
+@@ -373,7 +381,7 @@
+ 	const float vel_var = aid_src_vel.observation_variance[0];
+ 	const Vector2f vel_xy(aid_src_vel.observation);
+ 
+-	if ((vel_var > 0.f)
++	if (_gps_sample_delayed.horizontal_velocity_valid && (vel_var > 0.f)
+ 	    && (vel_var < _params.ekf2_req_sacc)
+ 	    && vel_xy.isAllFinite()) {
+ 
+@@ -434,7 +442,11 @@
+ void Ekf::resetVelocityToGnss(estimator_aid_source3d_s &aid_src)
+ {
+ 	_information_events.flags.reset_vel_to_gps = true;
+-	resetVelocityTo(Vector3f(aid_src.observation), Vector3f(aid_src.observation_variance));
++	if (_gps_sample_delayed.vertical_velocity_valid) {
++		resetVelocityTo(Vector3f(aid_src.observation), Vector3f(aid_src.observation_variance));
++	} else {
++		resetHorizontalVelocityTo(Vector2f(aid_src.observation), Vector2f(aid_src.observation_variance));
++	}
+ 
+ 	resetAidSourceStatusZeroInnovation(aid_src);
+ }
+--- a/src/modules/ekf2/EKF/aid_sources/zero_innovation_heading_update.cpp
++++ b/src/modules/ekf2/EKF/aid_sources/zero_innovation_heading_update.cpp
+@@ -44,7 +44,9 @@
+ 				|| _control_status.flags.ev_yaw || _control_status.flags.gnss_yaw;
+ 
+ 	// fuse zero innovation at a limited rate if the yaw variance is too large
+-	if (!yaw_aiding
++	// Browser: constrain only an unaligned yaw gauge. Once aligned, uncertainty
++	// must be allowed to grow without inventing another heading observation.
++	if (!yaw_aiding && !_control_status.flags.yaw_align
+ 	    && isTimedOut(_time_last_heading_fuse, (uint64_t)200'000)) {
+ 
+ 		// Use an observation variance larger than usual but small enough
+--- a/src/modules/ekf2/EKF/common.h
++++ b/src/modules/ekf2/EKF/common.h
+@@ -71,7 +71,8 @@
+ static constexpr uint64_t EV_MAX_INTERVAL       =
+ 	200e3;  ///< Maximum allowable time interval between external vision system measurements (uSec)
+ static constexpr uint64_t GNSS_MAX_INTERVAL     =
+-	500e3;  ///< Maximum allowable time interval between GNSS measurements (uSec)
++	1500e3; ///< Browser: permit 1 Hz fixes with jitter; no synthetic fixes.
++	// Maximum allowable time interval between GNSS measurements (uSec)
+ static constexpr uint64_t GNSS_YAW_MAX_INTERVAL =
+ 	1500e3; ///< Maximum allowable time interval between GNSS yaw measurements (uSec)
+ static constexpr uint64_t MAG_MAX_INTERVAL      =
+@@ -187,6 +188,12 @@
+ };
+ 
+ struct gnssSample {
++	// Browser capability mask. Defaults retain the upstream receiver contract.
++	bool quality_valid{true}; // Explicit browser quality/source invalidation.
++	bool horizontal_velocity_valid{true};
++	bool vertical_velocity_valid{true};
++	bool position_valid{true};
++	bool height_valid{true};
+ 	uint64_t    time_us{};    ///< timestamp of the measurement (uSec)
+ 	double      lat{};        ///< latitude (degrees)
+ 	double      lon{};        ///< longitude (degrees)
+--- a/src/modules/ekf2/EKF/ekf.cpp
++++ b/src/modules/ekf2/EKF/ekf.cpp
+@@ -149,12 +149,8 @@
+ 			return false;
+ 		}
+ 
+-		// calculate an average filter update time
+-		// limit input between -50% and +100% of nominal value
+-		const float filter_update_s = 1e-6f * _params.ekf2_predict_us;
+-		const float input = math::constrain(0.5f * (imu_sample_delayed.delta_vel_dt + imu_sample_delayed.delta_ang_dt),
+-						    0.5f * filter_update_s,
+-						    2.f * filter_update_s);
++		// Browser: average the actual delivered integration time.
++		const float input = 0.5f * (imu_sample_delayed.delta_vel_dt + imu_sample_delayed.delta_ang_dt);
+ 
+ 		if (_is_first_imu_sample) {
+ 			_accel_lpf.reset(imu_sample_delayed.delta_vel / imu_sample_delayed.delta_vel_dt);
+--- a/src/modules/ekf2/EKF/ekf.h
++++ b/src/modules/ekf2/EKF/ekf.h
+@@ -439,6 +439,7 @@
+ 
+ 	friend class AuxGlobalPosition;
+ 
++friend struct ZLayerPx4;
+ private:
+ 
+ 	friend class ExternalVisionVel;
+--- a/src/modules/ekf2/EKF/estimator_interface.cpp
++++ b/src/modules/ekf2/EKF/estimator_interface.cpp
+@@ -46,6 +46,7 @@
+ 
+ EstimatorInterface::~EstimatorInterface()
+ {
++	delete _system_flag_buffer;
+ #if defined(CONFIG_EKF2_GNSS)
+ 	delete _gps_buffer;
+ #endif // CONFIG_EKF2_GNSS
+@@ -96,13 +97,8 @@
+ 
+ 		imuSample imu_downsampled = _imu_down_sampler.getDownSampledImuAndTriggerReset();
+ 
+-		// as a precaution constrain the integration delta time to prevent numerical problems
+-		const float filter_update_period_s = _params.ekf2_predict_us * 1e-6f;
+-		const float imu_min_dt = 0.5f * filter_update_period_s;
+-		const float imu_max_dt = 2.0f * filter_update_period_s;
+-
+-		imu_downsampled.delta_ang_dt = math::constrain(imu_downsampled.delta_ang_dt, imu_min_dt, imu_max_dt);
+-		imu_downsampled.delta_vel_dt = math::constrain(imu_downsampled.delta_vel_dt, imu_min_dt, imu_max_dt);
++		// Browser: the host validates intervals and handles gaps. Preserve the
++		// duration matching these accumulated increments, including cadence changes.
+ 
+ 		_imu_buffer.push(imu_downsampled);
+ 
+@@ -181,7 +177,7 @@
+ 				- static_cast<int64_t>(_params.ekf2_gps_delay * 1000)
+ 				- static_cast<int64_t>(_dt_ekf_avg * 5e5f); // seconds to microseconds divided by 2
+ 
+-	if (time_us >= static_cast<int64_t>(_gps_buffer->get_newest().time_us + _min_obs_interval_us)) {
++	if (!gnss_sample.quality_valid || time_us >= static_cast<int64_t>(_gps_buffer->get_newest().time_us + _min_obs_interval_us)) {
+ 
+ 		gnssSample gnss_sample_new(gnss_sample);
+ 
+@@ -689,7 +685,7 @@
+ 
+ int EstimatorInterface::getNumberOfActiveVerticalVelocityAidingSources() const
+ {
+-	return int(_control_status.flags.gnss_vel)
++	return int(_control_status.flags.gnss_vel && _gps_sample_delayed.vertical_velocity_valid)
+ 	       + int(_control_status.flags.ev_vel);
+ }
+ 
+--- a/src/modules/ekf2/EKF/estimator_interface.h
++++ b/src/modules/ekf2/EKF/estimator_interface.h
+@@ -331,6 +331,7 @@
+ 
+ 	OutputPredictor &output_predictor() { return _output_predictor; };
+ 
++friend struct ZLayerPx4;
+ protected:
+ 
+ 	EstimatorInterface() = default;
+--- a/src/modules/ekf2/EKF/output_predictor/output_predictor.cpp
++++ b/src/modules/ekf2/EKF/output_predictor/output_predictor.cpp
+@@ -180,7 +180,7 @@
+ {
+ 	// Use full rate IMU data at the current time horizon
+ 	if (_time_last_update_states_us != 0) {
+-		const float dt = math::constrain((time_us - _time_last_update_states_us) * 1e-6f, 0.0001f, 0.03f);
++		const float dt = (time_us - _time_last_update_states_us) * 1e-6f; // Browser: preserve actual cadence.
+ 		_dt_update_states_avg = 0.8f * _dt_update_states_avg + 0.2f * dt;
+ 	}
+ 
+@@ -270,7 +270,7 @@
+ {
+ 	// calculate an average filter update time
+ 	if (_time_last_correct_states_us != 0) {
+-		const float dt = math::constrain((time_delayed_us - _time_last_correct_states_us) * 1e-6f, 0.0001f, 0.03f);
++		const float dt = (time_delayed_us - _time_last_correct_states_us) * 1e-6f; // Browser: preserve actual cadence.
+ 		_dt_correct_states_avg = 0.8f * _dt_correct_states_avg + 0.2f * dt;
+ 	}
+ 
+--- a/src/modules/ekf2/EKF/output_predictor/output_predictor.h
++++ b/src/modules/ekf2/EKF/output_predictor/output_predictor.h
+@@ -127,6 +127,7 @@
+ 	void set_pos_correction_tc(const float tau) { _pos_tau = tau; }
+ 	void set_vel_correction_tc(const float tau) { _vel_tau = tau; }
+ 
++friend struct ZLayerPx4;
+ private:
+ 
+ 	/*
+--- a/src/modules/ekf2/EKF/velocity_fusion.cpp
++++ b/src/modules/ekf2/EKF/velocity_fusion.cpp
+@@ -56,9 +56,10 @@
+ 
+ bool Ekf::fuseVelocity(estimator_aid_source3d_s &aid_src)
+ {
+-	// vx, vy, vz
++	const bool vertical = &aid_src != &_aid_src_gnss_vel || _gps_sample_delayed.vertical_velocity_valid;
++	// vx, vy, and vz only when actually measured
+ 	if (!aid_src.innovation_rejected) {
+-		for (unsigned i = 0; i < 3; i++) {
++		for (unsigned i = 0; i < (vertical ? 3u : 2u); i++) {
+ 			fuseDirectStateMeasurement(aid_src.innovation[i], aid_src.innovation_variance[i], aid_src.observation_variance[i],
+ 						   State::vel.idx + i);
+ 		}
+@@ -67,7 +68,7 @@
+ 		aid_src.time_last_fuse = _time_delayed_us;
+ 
+ 		_time_last_hor_vel_fuse = _time_delayed_us;
+-		_time_last_ver_vel_fuse = _time_delayed_us;
++		if (vertical) { _time_last_ver_vel_fuse = _time_delayed_us; }
+ 
+ 	} else {
+ 		aid_src.fused = false;

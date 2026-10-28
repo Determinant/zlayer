@@ -15,7 +15,7 @@
     "info:build": "node tools/info-server/build.mjs",
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "check": "npm run check:theme && npm run check:imports && tsc --noEmit && npm run check --workspaces --if-present",
+    "check": "npm run check:theme && npm run ahrs:check && npm run check:imports && tsc --noEmit && npm run check --workspaces --if-present",
     "check:imports": "node --import=tsx tools/check-imports.ts",
     "test": "node --import=tsx --import=./test/helpers/assets.ts --test test/*.test.ts && npm run test --workspaces --if-present",
     "test:notams:corpus": "node --import=tsx --import=./test/helpers/assets.ts --test test/notams-us1000.test.ts test/notams-artcc.test.ts",
@@ -30,7 +30,9 @@
     "verify:standard": "npm run verify && npm run test:smoke",
     "verify:full": "node tools/verify-full.mjs",
     "theme:generate": "node --import=tsx tools/generate-theme.ts",
-    "check:theme": "node --import=tsx tools/generate-theme.ts --check"
+    "check:theme": "node --import=tsx tools/generate-theme.ts --check",
+    "ahrs:build": "python3 tools/build-ahrs-px4.py",
+    "ahrs:check": "node tools/check-ahrs-px4.mjs"
   },
   "dependencies": {
     "@fontsource/b612": "^5.3.0",

@@ -90,17 +90,20 @@ event creation time is not guaranteed to be the hardware sampling instant.
 - `header`: format `zlayer-ahrs`, version `1`, unique recording ID, browser and
   built app script URL, units/frames, effective estimator options, mount, optional heading,
   current trim, visibility and initial snapshot/covariance. `context.estimatorModel`
-  is `kinematic-ahrs-v7`; this versions the equations separately from JSONL format 1.
-  v7 adds IMU scatter-dependent acceleration observation variance and averaged
-  motion qualification for gravity reacquisition. v6 introduced rotation-dependent
-  acceleration process noise and protected the heading trajectory from a periodic
-  reset during a turn. Covariance remains 30×30; matching dimensions alone do not
-  establish replay compatibility with v6 or earlier models.
-  Earlier estimator models require their original revision for replay.
+  is `px4-ekf2-v1.17.0-browser-v4`; this versions estimator behavior separately from JSONL format 1.
+  Browser v2 added automatic ground qualification and explicit PX4 flight defaults;
+  v3 corrected cadence, buffer startup, heading validity and GPS/IMU ordering.
+  V4 adds GPS invalidation/health continuity and corrects heading uncertainty and
+  GNSS handoff after magnetic startup. Browser v1/v2/v3 recordings require their
+  original revision.
+  The current covariance is 24×24. Earlier kinematic models, including
+  `kinematic-ahrs-v7` with its 30-state covariance, require their original revision.
 - `calibrate`: selected mount and optional one-time true heading.
-- `alignment`: complete calibration solution, including trim, force and gyro
-  bias/uncertainty; heading is recorded separately. Recalibration creates another
-  event in the same session.
+- `alignment`: complete calibration solution, including trim and gyro-bias
+  uncertainty and optional heading. `imuHistory` contains the
+  final second of actual, untrimmed calibration samples used to prime PX4's
+  delayed buffers. Replay applies the recorded trim to this history before
+  processing ready-state samples. Recalibration starts another segment.
 - `imu`: motion-adapter samples, before the calibration trim, and
   raw browser gyro/accelerometer channels where available. Gyro is rad/s and
   force is m/s². `phase` identifies calibration/ready state; `applied` identifies
@@ -112,44 +115,55 @@ event creation time is not guaranteed to be the hardware sampling instant.
 - `gps`: source state and fix, including coordinates, altitude, reported accuracy,
   speed/track, estimated-velocity flag, converted time and whether the observation
   was forwarded to the estimator. Forwarded observations can still be rejected
-  by the estimator's innovation or alignment gates.
+  by its quality, innovation or alignment gates. Poor/incomplete fixes are
+  forwarded so they can invalidate older ground/health evidence. A source failure
+  without a new observation has `invalidated: true`, `forwarded: false`, and
+  `time` equal to the monotonic receipt time. Replay applies this invalidation
+  even if the source retained an older fix; that retained fix is not fused.
   Available altitude and altitude accuracy are forwarded along with velocity.
   Gravity aiding is captured in estimator options and tilt innovations/diagnostics.
 - `state`: unsmoothed AHRS snapshot, at most 10 Hz while motion is arriving,
   including attitude, bias estimates, uncertainty, aiding status and fusion counts.
-- `magnetic`: source-labelled magnetic vector or compass heading/reference axis,
-  with its own monotonic timestamp and forwarding decision. Field vectors are
-  platform-calibrated µT readings; browser orientation vectors are unit length
-  and already OS-fused. Vectors and compass reference axes are in the **trimmed
-  estimator body frame**. The scalar compass heading and accuracy remain in
-  degrees as reported by the browser. Replay does not apply the mount trim again.
-- `magnetic-issue`: optional compass/sensor failure or pause. Clears magnetic
-  pending input and marks the aid unavailable while IMU/GPS continue. The learned
-  reference persists; the issue is also replayed.
-- `innovation`: each velocity, velocity-change, altitude, gravity/acceleration or magnetic
-  correction's acquisition time, source, dimension, residual, full row-major
-  innovation covariance, NIS, chi-square gate and acceptance/rejection result.
-  `iterations` identifies fixed-prior nonlinear reacquisition; its residual is
-  recentered against that prior. `priorWeight` identifies covariance intersection;
-  its covariance is a conservative correlation bound, not an independent-noise
-  prediction. A nonlinear correlated-heading recovery report contains both fields;
-  discarded iteration/weight candidates are not additional observations.
-  Valid redundant compass observations, or those whose retained-state uncertainty
-  cost outweighs the attitude benefit, can be `uninformative`.
-  Initialization has no innovation covariance/NIS. Velocity statistics exclude
-  altitude updates. Delayed fusion
-  can emit a revision with `replayed: true`; within a calibration segment, the
-  latest `(source, time)` replaces earlier reports for statistical analysis.
-  Raw magnetic innovations are three-dimensional, in fractions of the initial
-  field norm; browser-compass innovations are scalar radians. Gravity innovations
-  are three-dimensional m/s². `velocity-change` reports a two-dimensional
-  local velocity-increment residual in m/s; its directional mixture retains
-  additional posterior spread. Its reported NIS is a local gate diagnostic,
-  not a claim of a chi-square distributed radial likelihood. Unknown north remains unknown.
-- `covariance`: complete row-major 30×30 covariance, at most 1 Hz. State order is
-  position, velocity, local attitude error in radians, accelerometer bias, gyro
-  bias, persistent world acceleration, world magnetic reference, body magnetic
-  bias, transient world acceleration and cloned endpoint velocity (three axes each). Magnetic covariance uses normalized field units. Before heading alignment the navigation frame is relative, not north.
+  `groundState` reports PX4's delayed automatic assessment (`unknown`, `landed`,
+  `at-rest`). It is derived again from recorded GPS/IMU inputs during replay;
+  there is no pilot mode-change event.
+  `groundDiagnostics`, when present, retains the host's qualification reason,
+  input magnitudes and settling timers at its own latest IMU `time`, before the
+  native delay. These values remain historical during a motion pause. Units and
+  fields follow the [ground qualification contract](estimator/px4/README.md#automatic-ground-qualification).
+  Vibration metrics are smoothed sample differences, not sensor noise estimates.
+  `unaidedYaw` is PX4's wrapped gyro-yaw accumulator in degrees, excluding aiding
+  and reset jumps. The HSI uses its increments; it restarts with the native
+  estimator and is absent in historical snapshots.
+- `magnetic`: source-labelled measurement with its own monotonic timestamp and
+  forwarding decision. Current sensing records only platform-calibrated XYZ
+  fields in µT. Historical recordings can also contain OS-fused unit orientation
+  vectors or scalar compass heading/accuracy in degrees. Vectors and compass
+  reference axes are in the **trimmed estimator body frame**; replay does not
+  apply the mount trim again. PX4 rejects historical OS-fused magnetic inputs.
+- `magnetic-issue`: optional compass/sensor failure or pause. Marks the aid
+  unavailable while IMU/GPS continue. Buffered pre-failure measurements can
+  finish at the delayed horizon; PX4 stops fusion through its sensor timeout.
+  The learned reference persists; the issue is also replayed.
+- `innovation`: each reported PX4 velocity, altitude, gravity or magnetic aid
+  source's acquisition time, dimension, residual, variance diagnostic and result.
+  `covarianceKind: sequential-diagonal` identifies the per-axis variances exposed
+  by PX4; zero off-diagonal entries do not assert independent joint errors.
+  `gateKind: per-axis-sigma` identifies the upstream scalar gate convention.
+  The sum of squared normalized residuals is descriptive, not a joint chi-square
+  acceptance test. Gravity residuals use unit-vector components, magnetics use
+  gauss, velocity m/s and height metres. Browser velocity observations are 2D
+  unless actual NED velocity is provided. Internal fake-position/height and
+  zero-rate/zero-velocity updates are not included in these sensor-aid counters.
+  PX4 buffers delayed observations instead of replaying the full event history;
+  its reports have `replayed: false`. Historical models used different
+  residual units and joint-covariance semantics; use their original recording
+  contract when interpreting those files.
+- `covariance`: complete row-major 24×24 covariance, at most 1 Hz. State order is
+  NED attitude error (3), velocity (3), position (3), gyro bias (3), acceleration
+  bias (3), earth magnetic field (3), body magnetic bias (3), horizontal wind (2),
+  terrain (1). Angular errors use radians and magnetic fields use gauss. Unknown
+  north remains explicitly unknown even if the local yaw covariance is small.
 - `visibility`, `document-visibility`, `issue`, `stop`: lifecycle and sensor issues.
   An issue with `recoverable: true` keeps the session running for the next good reading.
 - `end`: explicit end reason. A file without `end` is a committed partial session.
@@ -176,12 +190,13 @@ node --import=tsx tools/ahrs-replay.ts recording.jsonl > replay.jsonl
 
 The runner starts from each recorded calibration solution and processes inputs
 in receipt order, preserving acquisition times, trim, forwarding decisions and
-one-time heading input. It emits current-algorithm states, heading transitions,
-innovations and a summary. The summary compares attitude/covariance with the
-recorded output and reports NIS by source after replacing replay revisions.
-Older or missing estimator model identifiers are explicitly rejected: retain the
-original code revision to replay those files. Existing recordings remain readable
-and downloadable; replay does not pretend the 15-state equations match this model.
+one-time heading input. It emits PX4 states, heading transitions, innovations
+and a summary. The summary compares attitude/covariance with the recorded output
+and reports NIS by source, counting each source/acquisition time once per
+calibration segment. Only the current PX4 model is supported. Other or missing
+model identifiers, including `kinematic-ahrs-v7`, are rejected with an instruction
+to use the original estimator revision; they are never reinterpreted as PX4.
+Existing recordings remain downloadable regardless of replay compatibility.
 This replays
 the estimator; it does not independently rederive the calibration solution.
 

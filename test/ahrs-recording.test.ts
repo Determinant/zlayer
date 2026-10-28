@@ -206,8 +206,11 @@ for (const speed of [null, 0, 50]) test(`layer recording replays calibration, ${
   for (const kind of ['header', 'calibrate', 'alignment', 'gps', 'imu', 'innovation', 'state', 'covariance', 'visibility', 'stop', 'end']) assert.ok(kinds.has(kind), kind);
   assert.equal(lines.find(line => line.type === 'calibrate').data.trueHeading, 120);
   assert.equal(lines.find(line => line.type === 'alignment').data.trueHeading, 120);
-  assert.equal(lines.some(line => line.type === 'gps' && line.data.forwarded), speed !== null);
-  if (speed === null) assert.ok(lines.some(line => line.type === 'innovation' && line.data.source === 'tilt'));
+  assert.ok(lines.some(line => line.type === 'gps' && line.data.forwarded), 'partial fixes reach the estimator');
+  if (speed === null) {
+    assert.ok(lines.some(line => line.type === 'innovation' && line.data.source === 'altitude'));
+    assert.ok(!lines.some(line => line.type === 'innovation' && line.data.source === 'velocity'), 'missing speed is not a velocity observation');
+  }
   const ready = lines.filter(line => line.type === 'imu' && line.data.phase === 'ready');
   assert.ok(ready.length > 0);
   assert.ok(ready.every(line => line.data.applied));
@@ -279,7 +282,7 @@ test('magnetic fusion records and replays through mount trim, stowing and sensor
 });
 
 
-for (const estimatorModel of [undefined, 'kinematic-ahrs-v5']) test(`replay explicitly rejects an older estimator model (${estimatorModel ?? 'missing'})`, async () => {
+for (const estimatorModel of [undefined, 'kinematic-ahrs-v5', 'kinematic-ahrs-v7']) test(`replay explicitly rejects an older estimator model (${estimatorModel ?? 'missing'})`, async () => {
   await assert.rejects(() => replayAhrs([{ sequence: 0, time: 0, type: 'header',
     data: { format: 'zlayer-ahrs', version: 1, context: { estimatorModel } } }]), /Unsupported estimator model/);
 });

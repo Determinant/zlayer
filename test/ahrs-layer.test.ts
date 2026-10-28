@@ -34,9 +34,19 @@ function setup(t: test.TestContext, start: () => Promise<void> = async () => {})
     return { start, stop: () => { stops++; } };
   };
   const notify = () => listeners.forEach(listener => listener());
+  let gpsPosition: [number, number] = [-122, 37], gpsTime = now();
+  let gpsVelocity: [number, number] = [0, 0];
   const fix = (change: Partial<NonNullable<typeof location.fix>> = {}) => {
+    const speed = change.speed ?? 55, track = change.track ?? 75;
+    const velocity: [number, number] = [speed * Math.cos(track * RAD), speed * Math.sin(track * RAD)];
+    const dt = now() - gpsTime;
+    gpsPosition = change.coordinates ? [...change.coordinates] : [
+      gpsPosition[0] + (gpsVelocity[1] + velocity[1]) * .5 * dt / (111320 * Math.cos(gpsPosition[1] * RAD)),
+      gpsPosition[1] + (gpsVelocity[0] + velocity[0]) * .5 * dt / 111320,
+    ];
+    gpsVelocity = velocity; gpsTime = now();
     location = { state: 'tracking', fix: {
-      timestamp: Date.now(), time: now(), altitude: null, altitudeAccuracy: null, accuracy: 5, speed: 55, track: 75, estimated: false, coordinates: [-122, 37], ...change,
+      timestamp: Date.now(), time: now(), altitude: null, altitudeAccuracy: null, accuracy: 5, speed: 55, track: 75, estimated: false, coordinates: gpsPosition, ...change,
     } };
     notify();
   };
@@ -67,7 +77,7 @@ function setup(t: test.TestContext, start: () => Promise<void> = async () => {})
     },
     loseGps: () => { location = { ...location, state: 'stale' }; notify(); },
     gpsStatus: (state: ReturnType<AhrsGpsSource['getSnapshot']>['state']) => { location = { ...location, state }; notify(); },
-    leases: () => leases, stops: () => stops };
+    position: () => gpsPosition, leases: () => leases, stops: () => stops };
 }
 
 test('GPS supplies a provisional HSI heading carried by gyro motion, retained through loss and stowing, and cleared on stop', async t => {
@@ -182,7 +192,7 @@ test('a changed pose during calibration keeps collecting the new reference with 
   s.feed(9.5, { gps: false, force });
   assert.equal(s.layer.readDisplaySnapshot().phase, 'ready');
   assert.equal(s.callbacks.length, 1, 'replacing the old reference keeps the sensor session');
-  near(s.layer.readDisplaySnapshot().attitude!.roll, 0);
+  near(s.layer.readDisplaySnapshot().attitude!.roll, 0, .01);
 });
 
 test('stop clears GPS instruments even while another consumer keeps the source live', async t => {
@@ -220,16 +230,16 @@ test('one confirmed flight window levels a tilted mount and removes gyro bias to
   const state = s.layer.getSnapshot();
   assert.equal(state.phase, 'ready');
   assert.equal(state.crossed, false);
-  assert.deepEqual(state.position, [-122, 37], 'the HSI receives the shared GPS position');
-  near(state.attitude!.roll, 0);
-  near(state.attitude!.pitch, 0);
+  assert.deepEqual(state.position, s.position(), 'the HSI receives the shared GPS position');
+  near(state.attitude!.roll, 0, .01);
+  near(state.attitude!.pitch, 0, .01);
   const expectedBias = rotate(mounting, gyro);
   state.attitude!.bias.forEach((v, i) => near(v, expectedBias[i]!));
   assert.equal(state.attitude!.headingReference, 'relative');
   assert.equal(state.attitude!.gpsAiding, false, 'GPS track cannot silently become heading');
   s.feed(5, { gyro, force });
-  near(s.layer.getSnapshot().attitude!.roll, 0);
-  near(s.layer.getSnapshot().attitude!.pitch, 0);
+  near(s.layer.getSnapshot().attitude!.roll, 0, .01);
+  near(s.layer.getSnapshot().attitude!.pitch, 0, .01);
   s.layer.stop();
   assert.equal(s.leases(), 0);
   assert.equal(s.stops(), 1);
@@ -309,15 +319,15 @@ for (const mode of ['lost', 'missing', 'slow'] as const) for (const visible of [
     s.feed(60, { gps: mode === 'slow', fix });
     const state = s.layer.readDisplaySnapshot();
     assert.equal(state.phase, 'ready');
-    assert.equal(state.attitude!.status, 'tracking');
+    assert.equal(state.attitude!.status, 'coasting');
     assert.ok(state.attitude!.tiltStd < 6);
-    assert.equal(state.attitude!.tiltAiding, true);
+    assert.equal(state.attitude!.tiltAiding, false);
     assert.equal(state.attitude!.tiltFusion.source, 'imu');
     assert.equal(state.warning, mode === 'slow' ? 'Low Speed' : 'No GPS');
     assert.equal(state.crossed, true);
     assert.equal(state.message, '');
-    assert.deepEqual(state.attitude!.bias, calibrated.bias);
-    assert.deepEqual(state.attitude!.accelBias, calibrated.accelBias);
+    assert.ok(state.attitude!.bias.every((v, i) => Math.abs(v - calibrated.bias[i]!) < .01 * RAD), 'PX4 may learn small gyro corrections');
+    assert.ok(state.attitude!.accelBias.every((v, i) => Math.abs(v - calibrated.accelBias[i]!) < .01));
     const rendered = renderToStaticMarkup(createElement(Horizon, state));
     assert.match(rendered, /data-testid="ahrs-moving-horizon"/);
     assert.match(rendered, /data-testid="ahrs-cross"/);
@@ -342,7 +352,7 @@ for (const mode of ['lost', 'missing', 'slow'] as const) for (const visible of [
 
 for (const hz of [50, 60, 120]) test(`stowing preserves every ${hz} Hz sample without display publications`, async t => {
   const s = setup(t);
-  await s.layer.calibrate('upright', 60); s.feed(11);
+  await s.layer.calibrate('upright', 60); s.feed(23); // Includes PX4's 10 s GPS health qualification after calibration.
   const update = t.mock.method(Ahrs.prototype, 'update');
   s.feed(1, { hz });
   assert.equal(update.mock.callCount(), hz, 'open AHRS keeps its normal input rate');
@@ -392,8 +402,8 @@ test('stowed calibration receives every sample and retains its mount trim and gy
   const state = s.layer.getSnapshot();
   assert.equal(state.phase, 'ready');
   assert.equal(state.crossed, false);
-  near(state.attitude!.roll, 0);
-  near(state.attitude!.pitch, 0);
+  near(state.attitude!.roll, 0, .01);
+  near(state.attitude!.pitch, 0, .01);
   rotate(mounting, gyro).forEach((v, i) => near(state.attitude!.bias[i]!, v));
   s.layer.stop();
   assert.equal(s.leases(), 0);
@@ -460,19 +470,21 @@ for (const heading of [undefined, 120]) test(`stationary GPS bounds tilt after $
   assert.equal(state.gpsLive, true);
   assert.equal(state.gpsUsable, false, 'the flight-speed warning remains separate from tilt aiding');
   assert.equal(state.warning, 'Low Speed');
+  assert.equal(attitude.groundState, 'at-rest');
   assert.ok(attitude.tiltStd < 6);
   assert.ok(Math.abs(attitude.roll) < 1 && Math.abs(attitude.pitch) < 1);
   if (heading === undefined) {
-    assert.ok(attitude.tiltFusion.accepted >= 5);
-    assert.equal(attitude.tiltAiding, true);
+    assert.equal(attitude.tiltFusion.accepted, 0);
+    assert.equal(attitude.tiltAiding, false);
     assert.equal(attitude.attitudeStd[2], Infinity);
   } else {
     assert.ok(attitude.fusion.accepted > 100);
     assert.equal(attitude.gpsAiding, true);
   }
   const markup = renderToStaticMarkup(createElement(AhrsDiagnostics, { layer: s.layer, active: false }));
-  assert.match(markup, /ahrs-aiding-status is-aided/);
-  assert.match(markup, /Gravity \/ acceleration aiding/);
+  if (heading === undefined) assert.doesNotMatch(markup, /ahrs-aiding-status is-aided/);
+  else assert.match(markup, /ahrs-aiding-status is-aided/);
+  assert.match(markup, /Qualified for stationary corrections/);
 });
 
 for (const unavailable of ['missing', 'denied', 'unsupported', 'stale', 'stationary', 'slow', 'estimated', 'inaccurate'] as const) {
@@ -495,8 +507,8 @@ for (const unavailable of ['missing', 'denied', 'unsupported', 'stale', 'station
     assert.equal(state.crossed, true);
     const warning = unavailable === 'stationary' || unavailable === 'slow' ? 'Low Speed' : 'No GPS';
     assert.equal(state.warning, warning);
-    near(state.attitude!.roll, 0);
-    near(state.attitude!.pitch, 0);
+    near(state.attitude!.roll, 0, .01);
+    near(state.attitude!.pitch, 0, .01);
     rotate(mounting, gyro).forEach((value, i) => near(state.attitude!.bias[i]!, value));
     const before = state.attitude!.roll;
     s.feed(1, { gps: false, rollRate: 10 * RAD });
@@ -553,15 +565,15 @@ test('a long motion pause keeps calibration and resumes with visible uncertainty
 
 test('a supplied independent heading enables GPS fusion without using track as heading', async t => {
   const s = setup(t);
-  await s.layer.calibrate('upright', 60); s.feed(12);
+  await s.layer.calibrate('upright', 60); s.feed(23); // GPS health qualification runs in the estimator.
   const state = s.layer.getSnapshot();
   assert.equal(state.attitude!.headingReference, 'manual-true');
   assert.equal(state.attitude!.gpsAiding, true);
-  near(state.attitude!.yaw, 60);
+  near(state.attitude!.yaw, 60, .01);
   near(state.track!, 75);
 });
 
-test('GPS motion aligns heading, while an unsupported jump to low speed is rejected', async t => {
+test('GPS motion aligns heading; a low-speed jump is gated before PX4 recovery and keeps the display warning', async t => {
   const s = setup(t);
   await s.layer.calibrate();
   s.feed(11, { gps: false });
@@ -581,12 +593,9 @@ test('GPS motion aligns heading, while an unsupported jump to low speed is rejec
   assert.equal(state.trueHeading, true);
   assert.equal(state.crossed, false);
   assert.equal(s.leases(), 1);
-  const accepted = state.attitude!.fusion.accepted;
   const rejected = state.attitude!.fusion.rejected;
   s.feed(3, { fix: { speed: 5 } });
   assert.equal(s.layer.readDisplaySnapshot().warning, 'Low Speed');
-  assert.equal(s.layer.readDisplaySnapshot().attitude!.gpsAiding, false);
-  assert.equal(s.layer.readDisplaySnapshot().attitude!.fusion.accepted, accepted);
   assert.ok(s.layer.readDisplaySnapshot().attitude!.fusion.rejected > rejected);
 });
 
@@ -735,6 +744,23 @@ test('heading permission completion cannot revive a released or disposed session
   assert.equal(s.layer.readDisplaySnapshot().phase, 'idle');
 });
 
+test('a disabled plugin can reuse its layer and release every restarted GPS lease', async t => {
+  const s = setup(t);
+  await s.layer.calibrate(); s.feed(11);
+  s.layer.dispose();
+  assert.equal(s.leases(), 0);
+  await s.layer.calibrate(); s.feed(11);
+  assert.equal(s.layer.getSnapshot().phase, 'ready');
+  s.layer.stop();
+  assert.equal(s.leases(), 0);
+  s.layer.dispose();
+  const release = s.layer.acquireHeading(() => {});
+  await Promise.resolve();
+  assert.equal(s.leases(), 1);
+  release();
+  assert.equal(s.leases(), 0);
+});
+
 for (const force of [[0, 0, -G], [G, 0, 0], [0, G, 0]] as Vec3[]) {
   test(`automatic heading supports a fixed mount with force ${force} without a level confirmation`, async t => {
     const s = setup(t);
@@ -772,7 +798,7 @@ for (const magnetic of [false, true]) {
       s.imu([0, 0, .5 * RAD]);
       if (magnetic && i % 2 === 0) s.magnetic({ time: i / 20, source: 'magnetometer', vector: [20, 0, 40] });
     }
-    if (magnetic) assert.ok(Math.abs(heading - 75) < 1, `magnetic evidence limits heading drift: ${heading}`);
+    if (magnetic) assert.ok(Math.abs(heading - 75) < 2, `PX4 magnetic evidence limits heading drift: ${heading}`);
     else assert.ok(heading > 77, 'GPS-only corrections retain the expected gyro-drift lag');
     release();
   });

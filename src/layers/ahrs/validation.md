@@ -2,292 +2,169 @@
 
 [Documentation](../../../docs/README.md) / Plugins / [ahrs](README.md)
 
-The experimental AHRS uses the quaternion error-state estimator documented in the
-[feature guide](README.md) and its estimator notes. This page lists validation
-criteria, recorded numerical results and remaining evidence gaps. Results apply
-to the recorded build and test conditions; static review, numerical regression
-and physical-device checks each cover different aspects of the estimator.
+The live estimator is [pinned PX4 EKF2](estimator/px4/README.md). Browser
+integration, native/WASM execution agreement, synthetic accuracy, and physical
+installation performance are separate checks. Passing one does not establish the
+others. The tool remains experimental and has not been flight validated.
 
 ## Estimator invariants
 
-- Use one body/world/quaternion convention across sensors, propagation, measurement
-  Jacobians, correction injection and covariance reset.
-- Count each observation once. Represent or conservatively bound shared IMU,
-  OS-heading and heading-fit errors.
-- Preserve finite, symmetric, positive-semidefinite covariance through restricted
-  gains, source changes, frame changes and nonlinear recovery. Do not clamp
-  covariance to manufacture confidence.
-- Iterated recovery uses one fixed prior and commits one state/covariance update.
-  Failed candidates leave live attitude and calibration means unchanged.
-- Relative magnetic observations cannot establish absolute north. GPS track is
-  not yaw; unknown alignment remains unknown.
-- Rejected measurements do not claim active aiding. One optional aid's failure
-  must not suppress valid evidence from another.
-- Calibration means change only when observable. Frozen means retain uncertainty
-  and cross-covariance; missing intervals age uncertainty without invented motion.
-- Delayed-event replay reproduces chronological updates within retained history,
-  including reference, qualification and auxiliary process state. Alignment
-  boundaries explicitly restart navigation/history.
-- Diagnostics describe the actual estimator state. Reported uncertainty is not a
-  substitute for comparing attitude with independent truth.
+- Preserve body FRD, NED and quaternion conventions, actual sample intervals and
+  every delivered IMU sample, including while stowed.
+- Keep vendored upstream files unchanged; represent adaptations in the reviewed
+  patch and bridge. Generated binary and input hashes must agree.
+- Missing GPS axes, receiver metadata, airspeed and hardware clipping information
+  must remain missing. OS-fused compass data cannot impersonate a raw magnetometer.
+- Qualify landed and rest separately from fresh GPS and IMU evidence. Unknown
+  state disables ground constraints; zero GPS speed alone must not suppress
+  rotation or require a user mode change.
+- Report finite state, covariance, actual fusion results and unknown heading
+  honestly. PX4's per-axis residual diagnostics are not a joint chi-square test.
+- Never extrapolate missing IMU data. Preserve pose with larger uncertainty on
+  app recovery and rebuild navigation/heading evidence.
+- Match native C++ and WASM behavior for the same source, configuration and inputs.
+  Agreement does not substitute for independent attitude truth.
 
 ## Input and recovery requirements
 
-The layer processes every delivered IMU sample while visible or stowed; display
-and status publication can be throttled independently. Selecting isolated samples
-without integration/filtering can alias vibration into persistent rotation.
-
-`MotionClock` normalizes event timestamps to the monotonic clock and records callback
-receipt time separately. Missing or invalid times cannot silently become receipt
-times or guessed sample intervals. DOM event creation is a browser timing proxy,
-not guaranteed hardware acquisition time. Physical batching, mount polarity and
-orientation conventions still require device checks. Motion rates and orientation
-Euler angles use different conventions; see the [motion specification](https://www.w3.org/TR/orientation-event/).
-
-Heading recovery uses an independent inertial trajectory. Main-filter altitude
-corrections cannot reset its horizontal heading evidence, and GPS evidence shared
-with other updates must not be counted again independently. Magnetic startup uses
-a provisional reference distinct from an established one; healthy returning input
-needs a qualified recovery path without treating an innovation rejection as proof
-that the field is trustworthy. Provider changes retain the joint uncertainty model
-and cannot repeatedly inflate unrelated covariance without a cost bound.
-
-Current equations and transitions live in the
-[gravity/acceleration](estimator/gravity-aiding.md),
-[magnetic fusion](estimator/magnetic-fusion.md),
-[heading alignment](estimator/heading-alignment.md) and
-[yaw-independent velocity-change](estimator/velocity-change.md)
-notes. The earlier bias-only magnetic-aiding design is superseded; its old test
-results must not be used as validation of vector fusion.
-
-## Remaining validation work
-
-1. Extend Monte Carlo consistency checks to the default kinematic/gravity/magnetic
-   combination, acquisition, provider transitions and recovery. The existing
-   NEES/NIS test exercises conventional strapdown propagation and GPS. Its dated
-   128-trial local tracking result was normalized NEES **0.989** and GPS NIS
-   **1.014** over 640 observations; this does not establish consistency of the
-   complete default estimator.
-2. Evaluate actual attitude/bias error, uncertainty coverage, innovation correlation,
-   false aiding and recovery latency across independently sampled priors and sensor
-   errors. Include long cruise, shallow/strong turns, sustained acceleration,
-   crosswind, bias changes, correlated GPS, timing jitter, dropouts and vibration.
-   Use observable marginals in relative mode; unknown yaw is not a zero-error,
-   zero-variance north observation. Fix assumptions and acceptance limits before
-   seeing results, and report error and uncertainty together.
-3. Collect phone recordings with independent attitude truth across supported mounts,
-   browsers, temperature and vibration. Acceleration time scales, rotation-dependent
-   diffusion and OS-heading uncertainty allowances are engineering models. Persistent
-   acceleration, correlated noise and slowly changing magnetic interference can
-   violate them. A figure-eight gesture or relative angular differencing alone does
-   not establish hard/soft-iron calibration.
-4. For a PX4/ArduPilot comparison, replay the same timestamped inputs with equivalent
-   sensors and configuration. No running reference-estimator comparison or physical
-   reference dataset was completed by these reviews. Extra sensors such as true
-   airspeed must be explicitly supplied or disabled; GPS groundspeed is not a
-   substitute for true airspeed in turn compensation. Reference agreement is
-   evidence, not independent truth or a percentage of avionics equivalence.
-
-Device permission, suspension, foreground recovery and combined-resource checks
-remain in [deployment readiness](../../../docs/development/deployment.md#verification-and-remaining-release-gates).
-For scrolling freezes and retained buffers, see
-[AHRS memory and scrolling](../../../docs/verification/memory-resources.md#ahrs-session-memory-and-scrolling).
-
-## v6 beta verification
-
-The September 20, 2026 v6 numerical baseline predates the v7 vibration changes
-below. Retain it for the original turn, compass-drift and uncertainty limits;
-it does not establish current sensor accuracy or resolve the statistical gaps
-in [remaining validation work](#remaining-validation-work).
-
-The v6 corrections added coherent-rotation-dependent acceleration process noise,
-retained turn evidence while delayed GPS completes heading qualification, and gated
-OS magnetic jumps before covariance-intersection weighting. Original performance
-limits were retained:
-
-| Scenario | v5 | v6 | Acceptance limit |
-| --- | --- | --- | --- |
-| Delayed-GPS manual-heading turn, peak roll error at 30/50/60 Hz | 0.555–0.576° | 0.126–0.159° | <0.5° |
-| Ideal automatic-heading turn, peak roll error | 2.493° | 0.673° | <1° |
-| Two-minute OS-compass yaw error, no GPS | about 5.07° | about 3.34° | <5° |
-| Same OS-compass scenario, tilt standard deviation | about 11.92° | about 7.90° | <10° |
-| Steady IMU, missing/lost/slow GPS, open/stowed layer | Six failures | All six passed | <6° |
-
-Regressions include three-minute vibration at 30/60 Hz, coherent versus alternating
-rotation, uncertainty through maneuver gaps, bounded heading-trajectory age, long
-heading recovery and exact delayed replay. Recordings identify the equations as
-`kinematic-ahrs-v6` with 30×30 covariance. Older models remain downloadable but
-require their original estimator for exact replay; the current replayer rejects
-incompatible models.
-
-## v7 vibration and HSI regressions
-
-The September 25, 2026 comparison evaluates v7's scatter-dependent force
-observation variance, averaged qualification of gravity reacquisition, and
-angular-excursion calibration check. The synthetic mount case in `test/helpers/ahrs-motion.ts` has
-±0.3° roll oscillation at 8.3 Hz, zero-mean force amplitudes of 5, 5 and 2.5 m/s²
-at 11.7, 9.1 and 7.3 Hz, and small gyro offsets. These frequencies are below Nyquist
-at both tested rates. They are chosen stress inputs, not measured canopy vibration.
-
-Starting from a quiet level reference, 60 seconds of these samples and steady
-1 Hz GPS produced the following peak absolute roll/pitch readings:
-
-| Sample rate | v6 before this change | v7 | Regression limit |
-| --- | --- | --- | --- |
-| 30 Hz | 21.34° | 1.47° | <2° |
-| 60 Hz | 17.19° | 1.77° | <2° |
-
-The calibration regression also qualifies this vibration at 30/60/120 Hz without
-absorbing it into trim or mean bias. Counterexamples retain rejection for sustained
-rotation, changing half-second means, large angular wandering, extreme raw scatter
-and inconsistent gravity. Missing-time and changed-pose checks remain intact.
-Tests cover delayed-GPS replay with identical final quaternion/covariance and
-post-gap gravity recovery while this vibration continues. Superimposing the same
-mount motion on an analytic 25° banked turn at 30/60 Hz keeps peak roll/pitch error
-below 3°, checking that the vibration weighting still follows a sustained bank.
-Existing maneuver and heading accuracy bounds were retained.
-
-The HSI now distinguishes a usable GPS/gyro display estimate from verified heading.
-Fresh GPS, live calibrated motion and acceptable tilt permit an amber **Estimated
-heading** label without a failure cross. Unknown north remains infinite in the
-estimator; GPS loss, low speed, motion faults and degraded tilt retain their warnings.
-No-route guidance is a text caution rather than a failed compass.
-
-The browser regression in `test/e2e/ahrs.spec.ts` starts vibration before
-calibration, then checks another simulated minute of displayed attitude within
-3° and an uncrossed, amber-labeled estimated HSI. This checks integration of the
-estimator and display; it does not measure device accuracy.
-
-These synthetic and browser regressions do not establish canopy-mount performance.
-Recordings from before engine start/calibration through engine-running vibration,
-with an independent attitude reference, remain needed to assess real drift,
-sampling aliasing, rectification, clipping and uncertainty coverage. v7 recordings
-require the matching estimator; v6 history above remains historical evidence.
+The current [port guide](estimator/px4/README.md) specifies sensors, units, cadence,
+delayed horizon, partial GNSS patch, automatic ground qualification and gap recovery.
+Calibration primes the core with real recent IMU history; recording/replay must
+preserve that history. Browser event creation
+is only a proxy for hardware acquisition. No test can infer unreported hardware
+clipping or remove aliasing that occurred before delivery.
 
 ## Regression coverage
 
-This inventory describes the checks and their scope; it does not assert a current
-passing run. Recorded results and their limitations remain above.
-For SVG instruments, distinguish path attachment/geometry from a visibility check
-that requires a nonzero bounding box. Uncertainty-trend assertions must follow
-actual aiding state; GPS loss alone does not imply gravity aiding has stopped.
+- `test/ahrs-px4.test.ts`: calibrated vibration at 20/30/60/120 Hz,
+  covariance health, mounted vibration without north alignment, rotation at zero
+  GPS speed, native instance disposal, calibrated bias startup,
+  gaps, missing vertical velocity, GPS health qualification, raw versus OS-fused
+  magnetics, a coordinated turn and one-second roll response.
+- `tools/ahrs-px4-parity.py`: native clang versus generated WASM during vibration,
+  a calibrated prior, heading reset and GNSS with a missing vertical velocity.
+  It checks attitude, biases, velocity and every entry of the 24×24 covariance
+  with an acceptance limit of 2×10⁻⁵. This is execution agreement only.
+- Calibration, layer, clock, HSI, display, sensor ownership and recording tests
+  continue to exercise the live core. Layer GPS fixtures now integrate coordinates
+  consistently with their speed/track; a fixed position plus sustained 55 m/s
+  is not a physically consistent navigation input.
+- `test/e2e/ahrs.spec.ts` exercises the built app with actual browser motion events,
+  calibration, vibration, sensor pauses, GPS loss, uncertainty, recovery and
+  visibility transitions. Recording, full-screen and instrument browser suites
+  cover the corresponding presentation and persistence contracts.
 
-- `test/ahrs-calibration.test.ts`: stationary sensor noise, level-flight rocking and
-  vibration at multiple and changing sample rates with/without GPS, measured
-  rejection reasons, motion/noise bounds, retained evidence across pauses without
-  counting missing time, and recovery when readings settle.
-- `test/ahrs-layer.test.ts`: combined and unaided calibration, full-rate processing while stowed, motion rejection and GPS qualification,
-  live indication with no fix, prolonged GPS loss or low speed even above the tilt
-  uncertainty threshold, GPS recovery without resetting calibration, independent
-  heading, cancellation, errors, and cleanup.
-- `test/ahrs-estimator.test.ts`: independent analytic motion at 30/50/60 Hz, delayed GPS replay,
-  covariance health, and calibration evidence checks.
-- `test/ahrs-motion-clock.test.ts`: browser adapter event/receipt separation, epoch
-  normalization, skipped timestamps, timing messages, and attitude accuracy and
-  freshness under queued callback delivery.
-- `test/ahrs-gap-recovery.test.ts`: repeated and long gaps, retained pose/bias,
-  increased uncertainty, covariance health, rejection of GPS from the missing
-  interval, and fresh GPS rebuilding tilt/heading aiding.
-- `test/ahrs-mathematics.test.ts`: independent finite differences of navigation dynamics
-  columns and the covariance-reset Jacobian, plus navigation-marginal NEES/GPS NIS.
-- `test/ahrs-observations.test.ts`: per-source innovation diagnostics and revision
-  handling when delayed observations replay existing corrections.
-- `test/ahrs-heading-recovery.test.ts`: long straight legs followed by finite turns,
-  repeated recovery, GPS loss/delay, wrong priors with concurrent altitude aiding,
-  isolated outliers, and preserved tilt/bias covariance.
-- `test/ahrs-tilt-aiding.test.ts`: no-GPS drift with vibration, persistent
-  acceleration ambiguity, all-axis accelerometer correction, free fall, disabling
-  gravity aiding, delayed GPS resumption, and heading acquisition after a straight leg.
-- `test/ahrs-kinematic-fusion.test.ts`: coherent rotation versus alternating
-  vibration, maneuver uncertainty across gaps, bounded heading-trajectory refresh,
-  persistent acceleration, correlated-compass uncertainty and nonlinear recovery.
-- `test/ahrs-magnetic-fusion.test.ts`: both vector Jacobians, reference covariance,
-  frame invariance, no-GPS drift for each sensor source, delayed fusion, weak yaw
-  geometry, disturbances, source switching, duplicate input and permission loss.
-- `test/ahrs-hsi.test.ts`: course/deviation signs, nearest legs, waypoint passage,
-  dateline and high-latitude geometry, magnetic/true references, unchanged CDI
-  geometry, heading versus track, available guidance beneath warnings, and REL
-  with position-based route readings.
-- `test/ahrs-heading-reference.test.ts`: GPS initialization, gyro motion through
-  north, delayed fixes, smooth corrections, retained references through recovery
-  and motion pauses, manual-heading precedence, and explicit reset.
-- `test/ahrs-magnetic-model.test.ts`: all 12 NOAA reference vectors, date/height
-  limits, east/west signs, wraparound and coefficient validation.
-- `test/ahrs-magnetic-data.test.ts`: manifest discovery, versioned loading, offline
-  reuse, mixed-cycle rejection and cancellation.
-- `test/ahrs-instruments.test.ts`: drum carries, animation continuity across
-  frame rates, bounded prediction, missing readings, units and recovery.
-- `test/ahrs-vertical-speed.test.ts`: analytic climb/descent/level trends,
-  damping across frame/fix rates, noise and digit hysteresis, validity gates,
-  discontinuities, and recovery without false climb indications.
-- `test/ahrs-display-frames.test.ts`: 60 FPS cap across display refresh rates,
-  missed-frame handling and cancellation.
-- `test/ahrs-recording.test.ts`: ordered events, bounded buffering, partial sessions
-  and storage-failure recovery.
-- `test/gps-service.test.ts`: shared location ownership, visibility, independent
-  AHRS/Ownship lifetimes, and AHRS operation without an Ownship instance.
-- `test/ownship-layer.test.ts`: map demand, centering, track history and lease cleanup.
-- `test/e2e/ahrs.spec.ts`: actual toolbox, motion events, HSI route selection,
-  responsive instrument layouts, calibration with no GPS fix or low speed, live
-  attitude beneath the cross during prolonged GPS absence and high uncertainty,
-  scrolling with paused/queued sensors during and after calibration, automatic
-  recovery after backgrounding or unusable readings, and recovery as GPS aiding
-  reduces uncertainty.
-- `test/e2e/ahrs-geometry.spec.ts`: rendered bank-pointer perpendicularity,
-  circular scaling and tape clearance across bank/pitch combinations; GPS V/S
-  placement and signed-digit fit at desktop/mobile widths.
-- `test/e2e/ahrs-fullscreen.spec.ts`: phone, tablet-window, mini, 4:3 and larger
-  tablet viewport fit in portrait/landscape, visible HSI readings/route selection,
-  touch targets, retained demo/calibration/HSI state, modal focus, Escape and persistence.
-- `test/e2e/ahrs-drums.spec.ts`: rendered rolling digits and altitude/speed transitions.
-- `test/e2e/ahrs-recording.spec.ts`: live capture, recorder layout, offline downloads
-  after reload and recovery of committed chunks after interruption or write failure.
-- `test/e2e/map-edge-tools.spec.ts`: touch layouts, focus and panel bounds.
+Synthetic vibration tests require peak roll/pitch below 3° after normal
+calibration for their specified bounded, below-Nyquist signals. They are chosen stress
+limits, not measured DA40 limits. A raw-magnetic heading integration test now
+uses PX4's measured behavior (under 2° lag in that fixture). The previous v7
+under-1° bound belongs to its historical model and is not a PX4 result.
+
+The mounted-vibration replay also keeps its original under-3° roll/pitch limit
+after calibration. During the initial PX4 port, enabling optional gravity-vector
+fusion caused a pitch error above 6° in the replay without north alignment;
+leaving that path disabled passed the same limit. This is historical evidence
+for retaining the upstream default, not validation of subsequent changes.
+Internal no-aiding position/height
+constraints can still stabilize the filter. The UI does not label those model
+constraints as measured GPS or gravity aiding.
+
+## Remaining validation work
+
+The browser v2 flight-default corrections, automatic ground qualification and
+raw-only magnetic sensing, v3 timing/startup corrections, and v4 heading and GPS
+health corrections still need full regression and DA40 validation. Earlier
+results do not establish their performance. Compilation alone does not validate
+these changes.
+
+A limited replay of the 16.3-second legacy recording ending `95ff9562.jsonl`
+through browser v4 produced finite states and covariance, but did not reduce its
+broad roll excursions. It used the header pose and gyro-bias prior with current
+PX4 defaults, without copying the incompatible old covariance or inventing
+startup history. Original GPS forwarding, current forwarding with original
+timestamps, and an inferred constant GPS clock correction were compared.
+Even with that correction, the filter qualified landed but never rest, and
+accepted no GPS velocity or gravity updates. This is evidence about response
+to those inputs, not measured attitude accuracy: the capture lacks calibration
+history and independent sensor-orientation truth. Detailed replay inputs,
+assumptions and results belong with the local evidence under `tmp/`.
+
+1. Record the DA40 installation from before engine start and calibration through
+   stationary engine-running vibration, with independent attitude truth. Compare
+   actual acquisition cadence, raw means, spectrum,
+   temperature and mounting. Determine whether the real failure is bias,
+   vibration rectification, clipping, aliasing, mount motion or a combination.
+   Use `groundDiagnostics` to identify rest vetoes, observe both qualification
+   timers, and compare with delayed `groundState` and gyro-bias estimates. A rate
+   or vibration limit exceeded only between the 10 Hz state snapshots can still
+   restart qualification; inspect the recorded full-rate IMU inputs as well.
+   The copied land-detector thresholds do not establish equivalence with PX4's
+   integrated IMU metrics or its separate filtered angular-velocity output.
+   Select any cutoff and noise/bias changes from the delivered device data,
+   including sustained real rotation, rather than from sample-difference metrics
+   alone. The diagnostic additions do not change estimator parameters or validate
+   the DA40 installation.
+2. Check statistical consistency and real error across cruise, shallow and strong
+   turns, sustained acceleration, crosswind, GPS correlation, bias changes,
+   thermal drift and long outages. In particular, PX4's GNSS yaw GSF without
+   airspeed is not equivalent to a fully instrumented flight controller.
+3. Exercise ground qualification through stops, taxiing, takeoff, zero-speed
+   rotation, vibration, strong-wind ambiguity, GPS loss/poor accuracy and IMU gaps.
+   Check entry/release timing at different delivered cadences and GPS/IMU callback
+   orders, delayed system flags, replay determinism and buffer disposal. Check
+   alternating/jittered intervals and the first delayed prediction after startup
+   or recovery: accumulated durations must remain intact, and no interval may be
+   predicted twice. Rest must release on movement; excessive vibration can
+   legitimately prevent rest qualification. Magnetic re-alignment must not
+   revive stale manual/GNSS heading validity, and heading resets must not create
+   spurious HSI gyro motion.
+   Verify GNSS acquisition after magnetic startup, uncertainty growth after
+   manual/GNSS alignment without aiding, and timestamped GPS failures through
+   the live layer and recording/replay. Missing updates must not count as a
+   continuous healthy GNSS qualification interval.
+4. Verify native device permission with raw-only magnetics, sensor conventions,
+   suspension, foreground recovery, offline launch, memory and scrolling on
+   supported phones/tablets.
+   Browser simulation cannot qualify hardware anti-alias filtering or vibration
+   tolerance. Follow [deployment readiness](../../../docs/development/deployment.md#verification-and-remaining-release-gates)
+   and [AHRS memory checks](../../../docs/verification/memory-resources.md#ahrs-session-memory-and-scrolling).
+
+## v6 beta verification
+
+The original results, numerical limits and unresolved consistency findings remain
+in [historical v6 verification](https://github.com/Determinant/zlayer/blob/52507ff98ef50d7a3b08a87e98cf9ab13154e845/src/layers/ahrs/validation.md#v6-beta-verification).
+They do not validate the live PX4 core.
+
+## v7 vibration and HSI regressions
+
+The September 25, 2026 results and original stress definitions remain in
+[historical v7 evidence](https://github.com/Determinant/zlayer/blob/52507ff98ef50d7a3b08a87e98cf9ab13154e845/src/layers/ahrs/validation.md#v7-vibration-and-hsi-regressions).
+The v7 engine and its numerical tests remain in that revision. Replay of those
+recordings requires the original estimator; the current tree contains only PX4.
 
 ## Reproduce and extend the evidence
 
-The standard precommit gate runs all AHRS Node tests and two browser smoke cases:
-calibration with GPS-loss display and cleanup, and denied motion permission.
-Prolonged vibration, uncertainty growth/convergence, magnetic disturbances and
-GPS-outage replays remain in the complete AHRS browser suite. Run the relevant
-cases when changing sensor processing or recovery, and the complete suite for
-sensor-fusion changes. `npm run verify:full` includes every case before release.
+Run from the repository root:
 
 ```sh
+npm run ahrs:check
+node --import=tsx --import=./test/helpers/assets.ts --test test/ahrs-*.test.ts
+python3 tools/ahrs-px4-parity.py
 npm run verify:standard
-node --import=tsx --test test/ahrs-*.test.ts
-node --import=tsx tools/ahrs-review-probes.ts
-npm run test:browser -- test/e2e/ahrs.spec.ts
+npm run test:browser -- test/e2e/ahrs.spec.ts test/e2e/ahrs-recording.spec.ts
 ```
 
-The bounded probes compare visible/stowed sampling, acquisition/receipt timing
-and heading recovery with/without altitude. Their synthetic counterexamples are
-diagnostic comparisons, not an accuracy specification. The original follow-up
-removed the stowed aliasing and altitude-blocked recovery; the receipt-time
-counterexample remains deliberately available for comparison.
+The standard gate includes Node tests, builds and browser smoke checks. Sensor
+fusion changes additionally require the complete AHRS browser suite. Full
+cross-engine/graphics and device release checks remain separate. Record actual
+run outcomes; a checked-in test or historical result is not proof of a current pass.
 
-The [recording and replay contract](recording.md) describes
-`tools/ahrs-replay.ts`, initialization requirements and observation diagnostics.
-Capture from before calibration, preserve per-observation residuals/innovation
-covariance/dimension/acceptance and replay revisions, and do not infer a complete
-checkpoint from a mid-flight header. For cross-engine execution use the
-[browser verification guide](../../../docs/development/local-development.md#verification).
+See the [recording contract](recording.md) for receipt-order replay, matching
+model identifiers and complete calibration initialization.
 
 ## Method references
 
-The methodology review inspected PX4
-[`c4e4ef9`](https://github.com/PX4/PX4-Autopilot/tree/c4e4ef98e9d75063bf3d53ebb2716221ee7505ae)
-and ArduPilot
-[`9165d22`](https://github.com/ArduPilot/ardupilot/tree/9165d22419406556fc9815d9f4e3e299e13713a8)
-on 2026-09-18. These are pinned development snapshots, not a comparison against
-every released controller. Similar MEMS hardware does not imply equivalent input
-streams: browser events differ from timestamped integrated inertial increments.
-
-| Reference | Use in validation |
-| --- | --- |
-| [Solà, quaternion kinematics for the ESKF](https://arxiv.org/abs/1711.02508) | Local error conventions, injection and covariance reset. |
-| [Mahony, Hamel and Pflimlin, nonlinear complementary filters](https://researchportalplus.anu.edu.au/en/publications/nonlinear-complementary-filters-on-the-special-orthogonal-group/) | Geometric observer comparison under its reference-vector assumptions. |
-| [Barrau and Bonnabel, invariant EKF](https://arxiv.org/abs/1410.1465) | Convergence arguments for the specified invariant system, not a proof for this implementation. |
-| [Fornasier et al., equivariant inertial-navigation symmetries](https://arxiv.org/abs/2309.03765v3) | Error/consistency evaluation methodology; its UAV measurement rates do not transfer directly to phones. |
-| [PX4 EKF2 guide](https://docs.px4.io/main/en/advanced_config/tuning_the_ecl_ekf), [replay workflow](https://docs.px4.io/main/en/debug/system_wide_replay) | Input handling, delayed fusion, recovery and same-input comparisons. |
-| [ArduPilot compass-less operation](https://ardupilot.org/plane/docs/common-compassless.html) | Independent IMU/GPS heading evidence and its observability limits. |
+The [PX4 source pin and patch](estimator/px4/README.md) are the implementation
+reference. [PX4's EKF tuning guide](https://docs.px4.io/main/en/advanced_config/tuning_the_ecl_ekf)
+explains the general strategy. Earlier research references and their limits remain
+in the [historical methodology](https://github.com/Determinant/zlayer/blob/52507ff98ef50d7a3b08a87e98cf9ab13154e845/src/layers/ahrs/validation.md#method-references).

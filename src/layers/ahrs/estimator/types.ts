@@ -1,21 +1,19 @@
 import type { Quaternion, Vec3 } from "./math.js";
-export type CorrectionResult = 'accepted' | 'innovation' | 'attitude-limit' | 'bias-limit' | 'covariance' | 'iteration-limit';
 export interface Observation {
-  source: 'velocity' | 'velocity-change' | 'altitude' | 'tilt' | 'magnetic';
+  source: 'velocity' | 'altitude' | 'tilt' | 'magnetic';
   time: number;
   dimension: number;
-  /** Innovation in the update's linearization, SI units in its observation basis.
-   * Iterated updates include recentering against the original prior. */
+  /** Innovation in its observation basis: velocity m/s, height m, unit gravity
+   * vector, or magnetic gauss. */
   residual: number[];
-  /** Present for a fixed-prior iterated observation; covariance is committed once. */
-  iterations?: number;
-  /** Present for covariance intersection with unknown sensor correlation. */
-  priorWeight?: number;
   /** Row-major innovation covariance, before gating/injection. Null for initialization. */
   covariance: number[] | null;
+  /** PX4 exposes sequential per-axis variances, not a joint innovation matrix. */
+  covarianceKind?: 'joint' | 'sequential-diagonal';
+  gateKind?: 'chi-square' | 'per-axis-sigma';
   nis: number | null;
   gate: number | null;
-  result: CorrectionResult | 'initialized' | 'geometry' | 'uninformative';
+  result: 'accepted' | 'innovation' | 'uninformative';
 }
 export type ObservationListener = (observation: Observation & { replayed: boolean }) => void;
 /** Observation times in one monotonic clock, in seconds. The browser adapter
@@ -38,18 +36,16 @@ export type MagneticSample = { time: number } & (
   // Browser heading/accuracy in degrees, with a unit reference axis in body axes.
   | { source: 'webkit-compass'; heading: number; accuracy: number; axis: Vec3 }
 );
-export type MagneticReference = { source: MagneticSample['source']; scale: number;
-  /** Initial OS heading error is part of every relative observation, not a new
-   * independent north measurement. Covariance intersection retains its sharing. */
-  initialVariance?: number };
 export interface GpsFix {
+  /** WGS-84 longitude/latitude. Absent coordinates are never fused as position. */
+  coordinates?: readonly [number, number];
   /** Acquisition time in the same monotonic seconds as the IMU. */
   time: number;
   /** Horizontal ground speed, m/s. */
   speed: number | null;
   /** Ground track clockwise from true north, degrees; not aircraft heading. */
   track: number | null;
-  /** Horizontal position accuracy, metres; used for quality gating only. */
+  /** Horizontal position accuracy, metres, interpreted as a 95% interval half-width. */
   accuracy: number;
   /** Position-derived speed/track is unsuitable for inertial aiding. */
   estimated?: boolean;
@@ -64,29 +60,19 @@ export interface GpsFix {
 }
 export interface AhrsOptions {
   gpsAiding?: boolean;
-  /** Joint acceleration/gravity observations. False selects conventional
-   * strapdown INS, consuming force only as a process input. Default true. */
+  /** Enable PX4 gravity-vector aiding when horizontal aiding is unavailable. */
   gravityAiding?: boolean;
   maxGap?: number;
   /** Resume after missing IMU data, retaining pose/bias and increasing uncertainty. Default false. */
   recoverAfterGap?: boolean;
-  historySeconds?: number;
-  /** Continuous white gyro noise density, rad/s/sqrt(Hz). */
+  /** PX4 angular-rate observation noise, rad/s. */
   gyroNoise?: number;
-  /** Continuous white accelerometer noise density, m/s²/sqrt(Hz). */
+  /** PX4 acceleration observation noise, m/s². */
   accelNoise?: number;
-  /** Gyro bias random walk, rad/s/sqrt(s). */
+  /** PX4 gyro-bias process noise, rad/s². */
   gyroBiasWalk?: number;
-  /** Accelerometer bias random walk, m/s²/sqrt(s). */
+  /** PX4 accelerometer-bias process noise, m/s³. */
   accelBiasWalk?: number;
-  /** Quiet-flight transient acceleration driving noise, m/s²/sqrt(s); rotation adds a maneuver allowance. */
-  accelerationWalk?: number;
-  /** Slow sustained-acceleration random walk, m/s²/sqrt(s); no pull toward zero. */
-  persistentAccelerationWalk?: number;
-  /** Transient acceleration correlation time, seconds. */
-  accelerationTimeConstant?: number;
-  /** Persistent unresolved acceleration standard deviation, m/s². */
-  initialAccelerationStd?: number;
   initialGyroBiasStd?: number;
   initialAccelBiasStd?: number;
   initialTiltStd?: number; // degrees
@@ -94,7 +80,32 @@ export interface AhrsOptions {
   gpsVelocityStd?: number; // m/s; browser does not report velocity accuracy
   maxTiltStd?: number; // degrees; uncertainty warning threshold, not an integrity guarantee
 }
+/** Host rest qualification at the latest processed IMU time, before PX4's delay.
+ * SI units throughout; vibration metrics are smoothed sample-difference norms,
+ * not RMS noise or hardware clipping measurements. */
+export interface GroundDiagnostics {
+  time: number;
+  reason: string;
+  gpsAge: number;
+  speed: number | null;
+  smoothedSpeed: number | null;
+  /** Absolute reported vertical speed; null when unavailable. */
+  verticalSpeed: number | null;
+  /** Absolute difference between mean specific-force magnitude and gravity. */
+  forceDeviation: number;
+  angularRate: number;
+  meanAngularRate: number;
+  gyroVibration: number;
+  accelVibration: number;
+  stoppedFor: number;
+  quietFor: number;
+}
 export interface Attitude {
+  /** Automatic browser assessment used at PX4's delayed horizon. Unknown includes
+   * flight; this is not an independent landing sensor or a pilot-operated mode. */
+  groundState?: 'unknown' | 'landed' | 'at-rest';
+  /** Absent before the first IMU sample and in historical snapshots. */
+  groundDiagnostics?: GroundDiagnostics | undefined;
   /** Body FRD → local-level rotation, quaternion [w, x, y, z]. North-aligned only while headingStatus is tracking. */
   quaternion: Quaternion;
   /** Roll and pitch in degrees. */
@@ -102,6 +113,9 @@ export interface Attitude {
   pitch: number;
   /** Clockwise yaw in [0, 360) degrees, relative or true as indicated below. */
   yaw: number;
+  /** PX4's accumulated gyro yaw in degrees, excluding aiding/reset jumps.
+   * Absent in historical snapshots. Restarts when the native estimator restarts. */
+  unaidedYaw?: number;
   /** Source of the most recent alignment; history, not current validity. */
   headingReference: "relative" | "manual-true" | "gps-inertial";
   headingStatus: "acquiring" | "tracking" | "recovering";

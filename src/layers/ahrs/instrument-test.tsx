@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { createRouteResolver } from '@zlayer/domain';
-import { Ahrs } from './estimator/ahrs';
 import { fromEuler, RAD } from './estimator/math';
 import { AhrsInstruments } from './instruments';
 import { METERS_PER_FOOT, METERS_PER_KNOT_SECOND } from './instrument-display';
@@ -10,7 +9,6 @@ import type { MagneticModel } from '../../core/geo/magnetic-model';
 /** A display source only: it never acquires GPS, motion, or a workspace route. */
 function createInstrumentTest() {
   const start = performance.now() / 1000;
-  const attitude = new Ahrs().getState(0);
   const route = createRouteResolver([])('370000N1230000W 370000N1210000W');
   route.waypoints.forEach((waypoint, index) => { waypoint.ident = `TEST ${index + 1}`; });
   const read = (): AhrsSnapshot => {
@@ -33,8 +31,19 @@ function createInstrumentTest() {
       altitudeAccuracy: 5,
       track: (yaw + 10 * Math.sin(elapsed / 5) + 360) % 360,
       position: [-122 + .3 * Math.sin(elapsed / 16), 37 + .025 * Math.sin(elapsed / 4)],
-      attitude: { ...attitude, roll, pitch, yaw, quaternion: fromEuler(roll * RAD, pitch * RAD, yaw * RAD),
-        status: 'tracking', headingReference: 'manual-true', headingStatus: 'tracking', attitudeStd: [1, 1, 1] },
+      attitude: {
+        roll, pitch, yaw, unaidedYaw: yaw, quaternion: fromEuler(roll * RAD, pitch * RAD, yaw * RAD),
+        status: 'tracking', reason: 'Simulated readings', age: 0, rate: 60, load: 1,
+        headingReference: 'manual-true', headingStatus: 'tracking', headingReason: 'Simulated heading',
+        bias: [0, 0, 0], accelBias: [0, 0, 0], velocity: [0, 0, 0],
+        attitudeStd: [1, 1, 1], tiltStd: 1, relativeYawStd: 1, gyroBiasStd: [0, 0, 0], accelBiasStd: [0, 0, 0],
+        gravityCorrection: false, tiltAiding: false, gpsAiding: false,
+        magneticFusion: { mode: 'qualifying', active: false, source: null, reason: '', accepted: 0, rejected: 0, age: Infinity },
+        gps: null, gpsAge: Infinity, fusionAge: Infinity, verticalSpeed: null,
+        tiltFusion: { accepted: 0, rejected: 0, nis: null, reason: '', lastFusion: -Infinity, age: Infinity },
+        fusion: { accepted: 0, rejected: 0, stale: 0, nis: null, reason: '' },
+        altitudeFusion: { accepted: 0, rejected: 0, nis: null, reason: '' },
+      },
     };
   };
   return { route, getSnapshot: read, readDisplaySnapshot: read, subscribe: () => () => {} };

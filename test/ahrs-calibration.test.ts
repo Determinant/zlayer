@@ -258,3 +258,74 @@ test('small average rate cannot hide a mount wandering through a large angle', (
   assert.equal(result.reason, 'imu-unstable');
   assert.equal(result.issue?.kind, 'angular-scatter');
 });
+
+test('calibration gate requires vertical evidence unless the host explicitly supplies pilot confirmation', () => {
+  const strict = new FlightAlignment();
+  const confirmed = new FlightAlignment({ requireVerticalEvidence: false });
+  const climbing = new FlightAlignment();
+  for (let i = 0; i <= 500; i++) {
+    const time = i / 50;
+    for (const gate of [strict, confirmed, climbing]) {
+      gate.observeImu({ time, gyro: [0, 0, 0], specificForce: [0, 0, -G] });
+      if (i % 50 === 0) gate.observeGps({ time, accuracy: 5, speed: 50, track: 0,
+        ...(gate === climbing ? { velocityNed: [50, 0, -3] as const } : {}) });
+    }
+  }
+  assert.equal(strict.snapshot(10).reason, 'vertical-evidence-unavailable');
+  assert.equal(confirmed.snapshot(10).reason, 'ready');
+  assert.equal(confirmed.snapshot(10).solution!.gpsVerified, true);
+  assert.equal(climbing.snapshot(10).reason, 'vertical-motion');
+  confirmed.observeImu({ time: 11, gyro: [0, 0, 0], specificForce: [0, 0, -G] });
+  assert.equal(confirmed.snapshot(11).reason, 'collecting-imu', 'gaps restart the observation window');
+});
+
+test('unaided alignment is explicit and does not weaken the default GPS evidence gate', () => {
+  const strict = new FlightAlignment({ requireVerticalEvidence: false });
+  const unaided = new FlightAlignment({ requireVerticalEvidence: false, allowUnaided: true });
+  for (const gate of [strict, unaided]) for (let i = 0; i <= 500; i++) {
+    gate.observeImu({ time: i / 50, gyro: [.001, 0, 0], specificForce: [0, 0, -G] });
+  }
+  assert.equal(strict.snapshot(10).reason, 'collecting-gps');
+  assert.equal(strict.snapshot(10).solution, null);
+  const reference = unaided.snapshot(10);
+  assert.equal(reference.reason, 'ready');
+  assert.equal(reference.solution!.gpsVerified, false);
+  assert.ok(Math.abs(reference.solution!.gyroBias[0] - .001) < 1e-10);
+  assert.equal(unaided.snapshot(11).solution, null, 'stale IMU data cannot initialize even a reference attitude');
+});
+
+test('a partial GPS window showing acceleration blocks unaided alignment', () => {
+  const gate = new FlightAlignment({ requireVerticalEvidence: false, allowUnaided: true });
+  for (let i = 0; i <= 500; i++) {
+    gate.observeImu({ time: i / 50, gyro: [0, 0, 0], specificForce: [0, 0, -G] });
+    if (i >= 250 && i % 50 === 0) gate.observeGps({ time: i / 50, speed: 50 + i / 50, track: 90, accuracy: 5 });
+  }
+  assert.equal(gate.snapshot(10).reason, 'gps-unstable');
+  assert.equal(gate.snapshot(10).solution, null);
+});
+
+test('partial and mixed GPS evidence cannot hide a measured climb or descent', () => {
+  for (const down of [-5, 5]) for (const start of [0, 5, 10]) {
+    const gate = new FlightAlignment({ requireVerticalEvidence: false, allowUnaided: true });
+    for (let i = 0; i <= 500; i++) {
+      const time = i / 50;
+      gate.observeImu({ time, gyro: [0, 0, 0], specificForce: [0, 0, -G] });
+      if (time >= start && i % 50 === 0) gate.observeGps({ time, speed: 50, track: 0, accuracy: 5,
+        ...(time === start ? { velocityNed: [50, 0, down] as const } : {}) });
+    }
+    assert.equal(gate.snapshot(10).reason, 'vertical-motion', `down=${down}, GPS starts at ${start}s`);
+    assert.equal(gate.snapshot(10).solution, null);
+  }
+});
+
+test('GPS verification at the window boundary is independent of the clock origin', () => {
+  for (const start of [0, .123]) {
+    const gate = new FlightAlignment({ allowUnaided: true });
+    for (let i = 1; i <= 490; i++) {
+      const time = start + i / 50;
+      if (i % 50 === 0) gate.observeGps({ time, speed: 50, track: 90, accuracy: 5, altitude: 1000, altitudeAccuracy: 10 });
+      gate.observeImu({ time, gyro: [0, 0, 0], specificForce: [0, 0, -G] });
+    }
+    assert.equal(gate.snapshot(start + 9.8).solution?.gpsVerified, true);
+  }
+});

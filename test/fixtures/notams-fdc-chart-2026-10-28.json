@@ -1,0 +1,114 @@
+{
+  "capturedAt": "2026-10-28T18:59:49.089022+00:00",
+  "source": "FAA NMS production retained generation; complete bulk/delta conflict variants",
+  "generationSha256": "2ff021f4be88e9acf206cd45ffc5e58b94141cb90bed2a9cb4c5e6c0a4af0e81",
+  "checkedAt": 1793213775331,
+  "issues": [
+    {
+      "id": "2679577401159351",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "2679577401159351",
+          "sourceId": "NMS_ID_2679577401159351",
+          "classification": "FDC",
+          "number": "2892",
+          "series": "",
+          "year": "2026",
+          "locations": [
+            "FDC"
+          ],
+          "icaoLocations": [
+            "KFDC"
+          ],
+          "accountability": "FDC",
+          "issuedAt": 1793126400000,
+          "updatedAt": 1793126400000,
+          "sourceUpdatedAt": "2026-10-27T18:40:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1793126280000,
+          "endsAt": null,
+          "effectiveStart": "202610271838",
+          "effectiveEnd": "PERM",
+          "endKind": "permanent",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "CHART CORRECT U.S. GOVERNMENT U.S GULF COAST HELICOPTER ROUTE CHART, EFFECTIVE 29 OCT 2026... ADD LIBERTY, TX CLASS E AIRSPACE. THAT AIRSPACE EXTENDING UPWARD FROM 700 FEET ABOVE THE SURFACE WITHIN A 7-MILE RADIUS OF LIBERTY MUNICIPAL AIRPORT (T78), LIBERTY, TX LOCATED AT 30 04 40N, 94 41 55.",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!FDC 6/2892 FDC CHART CORRECT U.S. GOVERNMENT U.S GULF COAST HELICOPTER ROUTE CHART, EFFECTIVE 29 OCT 2026... ADD LIBERTY, TX CLASS E AIRSPACE. THAT AIRSPACE EXTENDING UPWARD FROM 700 FEET ABOVE THE SURFACE WITHIN A 7-MILE RADIUS OF LIBERTY MUNICIPAL AIRPORT (T78), LIBERTY, TX LOCATED AT 30 04 40N, 94 41 55. 2610271838-PERM"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "Q) KFDC/QARCH/IV/BO/E/000/999/\nA) KFDC\nB) 2610271838\nC) PERM\nE) FDC CORRECT U.S. GOVERNMENT U.S GULF COAST HELICOPTER ROUTE CHART, EFFECTIVE 29 OCT 2026...\nADD LIBERTY, TX CLASS E AIRSPACE. THAT AIRSPACE EXTENDING UPWARD FROM 700 FEET ABOVE THE SURFACE WITHIN A 7-MILE RADIUS OF LIBERTY MUNICIPAL AIRPORT (T78), LIBERTY, TX LOCATED AT 30 04 40N, 94 41 55"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "9cc91bc01743e71406d80cdd4f66c1fab522352d1a73bb634d8daeb92097e07f"
+        },
+        {
+          "id": "2679577401159351",
+          "sourceId": "NMS_ID_2679577401159351",
+          "classification": "FDC",
+          "number": "2892",
+          "series": "",
+          "year": "",
+          "locations": [
+            "FDC"
+          ],
+          "icaoLocations": [
+            "KFDC"
+          ],
+          "accountability": "FDC",
+          "issuedAt": 1793126400000,
+          "updatedAt": 1793126400000,
+          "sourceUpdatedAt": "2026-10-27T18:40:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1793126280000,
+          "endsAt": null,
+          "effectiveStart": "202610271838",
+          "effectiveEnd": "PERM",
+          "endKind": "permanent",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "CORRECT U.S. GOVERNMENT U.S GULF COAST HELICOPTER ROUTE CHART, EFFECTIVE 29 OCT 2026... ADD LIBERTY, TX CLASS E AIRSPACE. THAT AIRSPACE EXTENDING UPWARD FROM 700 FEET ABOVE THE SURFACE WITHIN A 7-MILE RADIUS OF LIBERTY MUNICIPAL AIRPORT (T78), LIBERTY, TX LOCATED AT 30 04 40N, 94 41 55.",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!FDC 6/2892 FDC CHART CORRECT U.S. GOVERNMENT U.S GULF COAST HELICOPTER ROUTE CHART, EFFECTIVE 29 OCT 2026... ADD LIBERTY, TX CLASS E AIRSPACE. THAT AIRSPACE EXTENDING UPWARD FROM 700 FEET ABOVE THE SURFACE WITHIN A 7-MILE RADIUS OF LIBERTY MUNICIPAL AIRPORT (T78), LIBERTY, TX LOCATED AT 30 04 40N, 94 41 55. 2610271838-PERM"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "A0327/26 NOTAMN Q) KFDC/QXXXX////000/999/ A) KFDC B) 2610271838 C) PERM E) CHART CORRECT U.S. GOVERNMENT U.S GULF COAST HELICOPTER ROUTE CHART, EFFECTIVE 29 OCT 2026... ADD LIBERTY, TX CLASS E AIRSPACE. THAT AIRSPACE EXTENDING UPWARD FROM 700 FEET ABOVE THE SURFACE WITHIN A 7-MILE RADIUS OF LIBERTY MUNICIPAL AIRPORT (T78), LIBERTY, TX LOCATED AT 30 04 40N, 94 41 55."
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "e0e927c3fd7ddf9aab445ce07064a397116d3cd205c2dcc57c195e1647c42de4"
+        }
+      ],
+      "observations": {
+        "firstSeenAt": 1793126626027,
+        "lastSeenAt": 1793159034429,
+        "kinds": [
+          "bulk",
+          "delta"
+        ]
+      },
+      "variantsTruncated": false,
+      "locations": [
+        "FDC"
+      ],
+      "icaoLocations": [
+        "KFDC"
+      ],
+      "unscoped": false
+    }
+  ]
+}

@@ -21,8 +21,12 @@ test('delayed callbacks keep their original cadence and can catch up without rec
     filter.update({ time: timing.time, gyro: [0, 0, 10 * RAD], specificForce: [0, 0, -G] });
     if (i === 1) assert.equal(filter.getState(.6).status, 'stale', 'queued data must not look current');
   }
-  assert.equal(filter.getState(.6).status, 'tracking');
-  assert.ok(Math.abs(filter.getState(.6).yaw - 6) < .001, 'integrate captured intervals, not receipt times');
+  assert.ok(['tracking', 'coasting'].includes(filter.getState(.6).status));
+  const reference = new Ahrs();
+  for (let i = 0; i <= 60; i++) reference.update({ time: i / 100, gyro: [0, 0, 10 * RAD], specificForce: [0, 0, -G] });
+  assert.deepEqual(filter.getState(.6).quaternion, reference.getState(.6).quaternion,
+    'queued callbacks must match the same acquisition-time stream without callback delay');
+  filter.dispose(); reference.dispose();
 });
 
 test('duplicate event timestamps are skipped without moving the clock or inventing an interval', () => {
@@ -56,15 +60,17 @@ test('sample intervals and gaps survive event normalization', () => {
 });
 
 test('callback jitter does not accumulate fictitious pitch', () => {
-  const clock = new MotionClock(), filter = new Ahrs({ gpsAiding: false });
+  const clock = new MotionClock(), filter = new Ahrs({ gpsAiding: false }), reference = new Ahrs({ gpsAiding: false });
   const frequency = 2 * Math.PI * 2, amplitude = 20 * RAD;
   for (let i = 0; i <= 10 * 120; i++) {
     const t = i / 120, pitch = amplitude / frequency * Math.sin(frequency * t);
     const timing = clock.read(t * 1000, (t + .03 + .02 * Math.sin(frequency * t)) * 1000, 0)!;
-    filter.update({ time: timing.time, gyro: [0, amplitude * Math.cos(frequency * t), 0],
-      specificForce: [G * Math.sin(pitch), 0, -G * Math.cos(pitch)] });
+    const input: ImuSample = { time: t, gyro: [0, amplitude * Math.cos(frequency * t), 0],
+      specificForce: [G * Math.sin(pitch), 0, -G * Math.cos(pitch)] };
+    filter.update({ ...input, time: timing.time }); reference.update(input);
   }
-  assert.ok(Math.abs(filter.getState(10.03).pitch) < .01);
+  assert.ok(Math.abs(filter.getState(10.03).pitch - reference.getState(10.03).pitch) < 1e-8);
+  filter.dispose(); reference.dispose();
 });
 
 test('the browser adapter preserves queued event times and retains receipt metadata', async t => {

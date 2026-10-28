@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createMagneticSensor, orientationNorth } from '../src/layers/ahrs/magnetic-sensor';
+import { createMagneticSensor } from '../src/layers/ahrs/magnetic-sensor';
 import { createMotionSensor } from '../src/layers/ahrs/motion';
 import type { MagneticSample } from '../src/layers/ahrs/estimator/types';
 import type { Mount } from '../src/layers/ahrs/estimator/device-frame';
@@ -34,36 +34,15 @@ function browser(t: test.TestContext, mount: Mount = 'flat') {
   };
 }
 
-test('absolute orientation reconstructs hardware-frame north through upright and flat poses', () => {
-  const close = (actual: readonly number[], expected: readonly number[]) =>
-    actual.forEach((value, i) => assert.ok(Math.abs(value - expected[i]!) < 1e-10));
-  close(orientationNorth(0, 0, 0), [0, 1, 0]);
-  close(orientationNorth(90, 0, 0), [1, 0, 0]);
-  close(orientationNorth(0, 90, 0), [0, 0, -1]);
-  close(orientationNorth(90, 90, 0), [1, 0, 0]);
-});
-
-for (const mount of ['flat', 'upright'] as const) test(`${mount}: browser compass is optional and relative orientation is never a magnetic reference`, async t => {
+for (const mount of ['flat', 'upright'] as const) test(`${mount}: OS compass events are not a raw field fallback`, async t => {
   const s = browser(t, mount); await s.sensor.start();
-  s.emit({ alpha: 0, beta: 90, gamma: 0, absolute: false });
-  assert.equal(s.samples.length, 0);
   s.emit({ alpha: 0, beta: 90, gamma: 0, absolute: true }, 'deviceorientationabsolute');
-  assert.equal(s.samples.length, 1);
-  const sample = s.samples[0]!;
-  assert.equal(sample.source, 'absolute-orientation');
-  if (sample.source !== 'absolute-orientation') throw new Error('Wrong source');
-  assert.ok(Math.abs(sample.vector[mount === 'upright' ? 0 : 2] - 1) < 1e-10);
-  s.advance(200);
   s.emit({ webkitCompassHeading: 120, webkitCompassAccuracy: 4 });
-  assert.deepEqual(s.samples[1], { time: .3, source: 'webkit-compass', heading: 120, accuracy: 4,
-    axis: mount === 'flat' ? [1, 0, -0] : [-0, 0, -1] });
-  s.advance(200); s.emit({ webkitCompassHeading: 120, webkitCompassAccuracy: -1 });
-  assert.equal(s.samples.length, 2); assert.match(s.issues.at(-1)!, /accuracy/);
-  s.sensor.stop(); s.advance(200); s.emit({ webkitCompassHeading: 120, webkitCompassAccuracy: 4 });
-  assert.equal(s.samples.length, 2);
+  assert.deepEqual(s.samples, []);
+  assert.match(s.issues.at(-1)!, /Raw magnetic sensor unavailable/);
 });
 
-test('field sensor precedence, timestamps, fallback and cleanup', async t => {
+test('raw field timestamps, failure and cleanup', async t => {
   const s = browser(t);
   let field!: Field;
   class Field extends EventTarget {
@@ -78,20 +57,21 @@ test('field sensor precedence, timestamps, fallback and cleanup', async t => {
   field.dispatchEvent(new Event('reading')); assert.equal(s.samples.length, 1);
   s.advance(100); s.emit({ absolute: true, alpha: 0, beta: 0, gamma: 0 });
   assert.equal(s.samples.length, 1, 'do not fuse two APIs for the same physical magnetic sensor');
-  // Failure must release precedence immediately, even after a recent raw read.
+  // A failed raw sensor must not activate the rejected OS compass input.
   field.dispatchEvent(new Event('error'));
   s.emit({ absolute: true, alpha: 0, beta: 0, gamma: 0 });
-  assert.equal(s.samples.at(-1)!.source, 'absolute-orientation');
+  assert.equal(s.samples.length, 1);
+  assert.match(s.issues.at(-1)!, /Raw magnetic sensor unavailable/);
   s.advance(200); field.timestamp = 400; field.dispatchEvent(new Event('reading'));
-  assert.equal(s.samples.length, 2, 'a failed sensor cannot keep emitting into the fallback session');
+  assert.equal(s.samples.length, 1, 'a failed sensor cannot keep emitting after its listeners are removed');
   s.document.hidden = true; s.document.dispatchEvent(new Event('visibilitychange'));
   assert.match(s.issues.at(-1)!, /paused/);
-  s.advance(200); s.emit({ absolute: true, alpha: 0, beta: 0, gamma: 0 }); assert.equal(s.samples.length, 2);
+  s.advance(200); s.emit({ absolute: true, alpha: 0, beta: 0, gamma: 0 }); assert.equal(s.samples.length, 1);
   s.sensor.stop(); field.timestamp = 2000; field.dispatchEvent(new Event('reading'));
-  assert.equal(s.samples.length, 2); assert.ok(field.stopped >= 1);
+  assert.equal(s.samples.length, 1); assert.ok(field.stopped >= 1);
 });
 
-test('permission requests start together and compass denial leaves motion usable', async t => {
+test('motion starts without requesting OS compass permission', async t => {
   const s = browser(t), calls: string[] = [];
   class Motion extends Event {
     static requestPermission() { calls.push('motion'); return Promise.resolve('granted'); }
@@ -102,16 +82,7 @@ test('permission requests start together and compass denial leaves motion usable
     { sample: value => s.samples.push(value), issue: reason => s.issues.push(reason) });
   s.stopWith(motion.stop);
   const start = motion.start();
-  assert.deepEqual(calls, ['motion', 'orientation:true']);
+  assert.deepEqual(calls, ['motion']);
   await start;
-  assert.ok(s.issues.some(message => /denied/.test(message)));
-});
-
-test('stopping while permission is pending prevents late listeners and stale samples', async t => {
-  const s = browser(t);
-  let finish!: (value: string) => void;
-  s.Orientation.requestPermission = () => new Promise(resolve => { finish = resolve; });
-  const start = s.sensor.start(); s.sensor.stop(); finish('granted'); await start;
-  s.emit({ absolute: true, alpha: 0, beta: 0, gamma: 0 });
-  assert.deepEqual(s.samples, []);
+  assert.ok(s.issues.some(message => /Raw magnetic sensor unavailable/.test(message)));
 });
