@@ -1,5 +1,6 @@
 import type { NotamRecord } from '@zlayer/contracts';
 import { notamScheduleActive, parseNotamSchedule } from './schedule';
+import { parseIcaoNotice } from './representation';
 
 /** Unknown dates stay unknown; never let Date silently roll an invalid UTC day forward. */
 export function notamTime(value: string): number | null {
@@ -22,9 +23,19 @@ export function notamEndKind(record: EndEvidence): NotamRecord['endKind'] {
   const compactEnd = end === null ? undefined : new Date(end).toISOString().replace(/\D/g, '').slice(2, 12);
   let estimated = record.endKind === 'estimated' || /EST$/.test(record.effectiveEnd.trim()), conflicting = false;
   for (const text of [record.text, ...record.translations.map(t => t.text)]) {
-    for (const match of text.matchAll(/\b\d{10}-(\d{10})EST\b/g)) {
+    for (const match of text.matchAll(/\b\d{10}\s*-\s*(\d{10})EST\b/g)) {
       if (match[1] === compactEnd) estimated = true;
       else conflicting = true;
+    }
+    // ICAO item C carries EST without the native start-end separator. Use the
+    // complete field-state parser so incidental C)/EST prose cannot supply an
+    // expiry. A differing estimated end remains uncertainty, never a correction.
+    if (text.includes('EST') || text.includes('&')) {
+      const parsed = parseIcaoNotice(text);
+      if (parsed.ok && parsed.value.end.endsWith('EST')) {
+        if (parsed.value.end.slice(0, -3) === compactEnd) estimated = true;
+        else conflicting = true;
+      }
     }
   }
   const kind = conflicting ? 'unknown' : record.effectiveEnd.trim() === 'PERM' ? 'permanent'

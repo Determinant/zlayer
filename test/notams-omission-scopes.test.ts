@@ -9,6 +9,7 @@ import fdc from './fixtures/notams-fdc-renderings.json';
 import intl from './fixtures/notams-rkti-2026-10-11.json';
 import johCapture from './fixtures/notams-evidence-2026-10-08.json';
 import fimCapture from './fixtures/notams-fim-association-2026-10-22.json';
+import fraCapture from './fixtures/notams-fra-association-2026-10-28.json';
 import { recordWithRevision } from '../tools/info-server/notams/normalize';
 import { compareNotamContent, resolveNotamRevision, resolveNotamFilingScope } from '../tools/info-server/notams/revision';
 import { collectNotamRecords, rebaseNotamRecords } from '../tools/info-server/notams/collection';
@@ -18,6 +19,7 @@ import { permutations, batchPartitions } from './helpers/permutations';
 
 const issues = capture.issues.map(value => { assert.ok(isNotamSourceIssue(value)); return value; });
 const fim: NotamSourceIssue = (() => { const value: unknown = fimCapture.issues[0]; assert.ok(isNotamSourceIssue(value)); return value; })();
+const fra: NotamSourceIssue = (() => { const value: unknown = fraCapture.issues[0]; assert.ok(isNotamSourceIssue(value)); return value; })();
 type NotamCollection = ReturnType<typeof collectNotamRecords>;
 const changed = (record: NotamRecord, patch: Partial<NotamRecord>) => {
   const { revision: _revision, ...facts } = record; return recordWithRevision({ ...facts, ...patch });
@@ -92,7 +94,7 @@ test('populated years, incomplete witnesses, changed operational facts and contr
 });
 
 test('captured station and FIR scopes compose without asserting an airport alias or losing their supplied sets', () => {
-  for (const issue of [...issues.slice(1), fim]) {
+  for (const issue of [...issues.slice(1), fim, fra]) {
     const result = assertResolved(issue.variants);
     assert.deepEqual(result.icaoLocations, [...issue.icaoLocations].sort());
     assert.deepEqual(new Set(result.sourceIcaoLocations!.flat()), new Set(issue.icaoLocations));
@@ -102,6 +104,109 @@ test('captured station and FIR scopes compose without asserting an airport alias
     assert.equal(isNotamRecord({ ...result, sourceIcaoLocations: [issue.variants[0]!.icaoLocations, issue.variants[0]!.icaoLocations] }), false);
     assert.equal(isNotamRecord({ ...result, icaoLocations: [issue.icaoLocations[0]!] }), false);
   }
+});
+
+test('ICAO station/FIR roles bind by complete evidence across classifications, station codes and FIRs', () => {
+  // Constructed role combinations. No station/FIR geography or classification
+  // inference is needed: both associations and their roles are explicitly given.
+  for (const classification of ['INTL', 'MIL']) for (const station of ['FRA', 'ABC', 'A1B', 'ABCD'])
+    for (const fir of ['KZOA', 'PAZA', 'PHZH', 'TJZS', 'EGTT', 'YBBB']) for (const local of [false, true]) {
+      const pair = fra.variants.map(record => changed(record, { classification,
+        number: '01526', locations: [station], accountability: fir,
+        icaoLocations: record.icaoLocations.map(code => code === 'FRA' ? station : fir),
+        text: `${station} NAV VORTAC U/S`,
+        translations: record.translations.filter(t => local || t.type !== 'LOCAL_FORMAT').map(t => ({ ...t,
+          text: t.text.replaceAll('FRA', station).replaceAll('KZOA', fir) })),
+      }));
+      const result = assertResolved(pair);
+      assert.deepEqual(result.icaoLocations, [station, fir].sort());
+      assert.deepEqual(result.sourceIcaoLocations, [[station], [fir]].sort((a, b) => a[0]!.localeCompare(b[0]!)));
+      assert.equal(result.classification, classification);
+    }
+});
+
+test('complete ICAO scope evidence preserves all keywords, schedules, end semantics and vertical limits', () => {
+  for (const keyword of ['RWY', 'TWY', 'APRON', 'AD', 'OBST', 'NAV', 'COM', 'SVC', 'AIRSPACE', 'ODP',
+    'SID', 'STAR', 'CHART', 'DATA', 'DVA', 'IAP', 'VFP', 'ROUTE', 'SPECIAL', 'SECURITY'])
+    for (const end of ['2610292359', '2610292359EST', 'PERM']) for (const schedule of ['', 'DLY 1600-1800']) {
+      const pair = fra.variants.map(record => changed(record, { text: `FRA ${keyword} EQUIPMENT U/S`, schedule,
+        endsAt: end === 'PERM' ? null : record.endsAt, effectiveEnd: end === 'PERM' ? end : record.effectiveEnd,
+        endKind: end === 'PERM' ? 'permanent' : end.endsWith('EST') ? 'estimated' : 'fixed',
+        translations: record.translations.filter(t => t.type === 'OTHER:ICAO').map(t => ({ ...t, text: t.text
+          .replace('2610292359', end).replace('E)', `${schedule ? `D) ${schedule} ` : ''}E)`)
+          .replace('NAV VORTAC U/S', `${keyword} EQUIPMENT U/S F) SFC G) FL100`) })),
+      }));
+      const result = assertResolved(pair);
+      assert.deepEqual(result.icaoLocations, ['FRA', 'KZOA']);
+      assert.equal(result.endKind, pair[0]!.endKind); assert.equal(result.schedule, schedule);
+    }
+});
+
+test('both identity witnesses retain bare or supplied prefixed station/FIR scopes without widening wire bounds', () => {
+  for (const original of [scopePair(), fra.variants]) {
+    const station = original[0]!.locations[0]!, fir = original === fra.variants ? 'KZOA' : 'KZLA';
+    const full = original.find(record => record.translations.some(t => t.type === 'OTHER:ICAO'))!;
+    const variants = [station, `K${station}`, fir].map(code => changed(full, { icaoLocations: [code] }));
+    for (const source of variants.slice(0, 2)) {
+      const resolved = assertResolved([source, variants[2]!]);
+      assert.deepEqual(resolved.icaoLocations, [...source.icaoLocations, fir].sort());
+      assert.equal(resolved.sourceIcaoLocations?.length, 2);
+      const sparse = changed(source, { translations: [] });
+      assert.deepEqual(collectNotamRecords({ records: [resolved] }, [sparse]).records[0]!.icaoLocations, resolved.icaoLocations);
+    }
+    assert.equal(resolveNotamRevision(variants.slice(0, 2)).kind, 'unresolved', 'a mentioned FIR cannot manufacture a supplied association');
+    for (const order of permutations(variants)) assert.equal(resolveNotamRevision(order).kind, 'unresolved',
+      'three supplied scope sets exceed the existing two-set wire contract; preserve the issue');
+  }
+});
+
+test('explicit FIR membership composes with the existing complete ICAO schedule-omission proof', () => {
+  const pair = fra.variants.map(record => changed(record, { schedule: 'DLY 1600-1800',
+    translations: record.translations.filter(t => t.type === 'OTHER:ICAO').map(t => ({ ...t,
+      text: t.text.replace('E)', 'D) DLY 1600-1800 E)') })),
+  }));
+  const sparse = changed(pair[0]!, { schedule: '', year: '', number: '001526', sequence: 2, correction: 1 });
+  const resolved = assertResolved([sparse, pair[1]!]);
+  assert.equal(resolved.schedule, 'DLY 1600-1800'); assert.deepEqual(resolved.icaoLocations, ['FRA', 'KZOA']);
+  const wrong = changed(sparse, { schedule: 'DLY 1700-1800' });
+  for (const order of permutations([sparse, pair[1]!, wrong])) assert.equal(resolveNotamRevision(order).kind, 'unresolved');
+});
+
+test('ICAO role evidence cannot hide a contradictory identity, scope, operational field or retained translation', () => {
+  const [a, b] = fra.variants as [NotamRecord, NotamRecord];
+  const conversion = (from: string, to: string) => changed(b, { translations: b.translations.map(t =>
+    t.type === 'OTHER:ICAO' ? { ...t, text: t.text.replace(from, to) } : t) });
+  const local = (from: string, to: string) => changed(b, { translations: b.translations.map(t =>
+    t.type === 'LOCAL_FORMAT' ? { ...t, text: t.text.replace(from, to) } : t) });
+  const contrary = [
+    conversion('A1526/26', 'A1527/26'), conversion('A1526/26', 'A1526/25'),
+    conversion('Q) KZOA', 'Q) KZLA'), conversion('A) KZOA', 'A) KLAX'),
+    conversion('2610291600', '2610291601'), conversion('2610292359', '2610292359EST'),
+    conversion('QNTAS', 'QNTXX'), conversion('VORTAC U/S', 'VORTAC U/S EXC EMERGENCY'),
+    conversion('NOTAMN', 'NOTAMR A1525/26'), conversion('E)', 'D) DLY 1700-1800 E)'),
+    local('FRA', 'ABC'), local('2610291600', '2610291601'), local('VORTAC U/S', 'VORTAC U/S EXC EMERGENCY'),
+    changed(b, { year: '2025' }), changed(b, { series: 'B' }), changed(b, { number: '1527' }),
+    changed(b, { icaoLocations: ['KLAX'] }), changed(b, { locations: ['ABC'] }),
+    changed(b, { effectiveStart: '202610291601', startsAt: b.startsAt! + 60_000 }),
+    changed(b, { text: b.text + ' EXC EMERGENCY' }), changed(b, { schedule: 'DLY 1700-1800' }),
+    changed(b, { translations: [...b.translations, { type: 'OTHER:UNKNOWN', text: b.text }] }),
+    changed(b, { translations: [...b.translations, { type: 'OTHER:ICAO', text: 'INCOMPLETE' }] }),
+    changed(b, { translations: [...b.translations, { type: 'LOCAL_FORMAT', text: b.translations[0]!.text.replace('10/205', '10/206') }] }),
+  ];
+  for (const mutation of contrary) for (const order of permutations([a, b, mutation])) for (const batches of batchPartitions(order)) {
+    let state: NotamCollection = { records: [] };
+    for (const batch of batches) state = collectNotamRecords(state, batch);
+    assert.equal(state.issues?.length, 1, JSON.stringify(mutation));
+    assert.equal(collectNotamRecords(state, [a, b]).issues?.length, 1);
+  }
+  for (const pair of [
+    [a, b].map(record => changed(record, { translations: [] })),
+    [a, changed(b, { translations: [] })],
+    [a, b].map(record => changed(record, { text: 'NAV VORTAC U/S', translations: record.translations
+      .filter(t => t.type === 'OTHER:ICAO').map(t => ({ ...t, text: t.text.replace('E) FRA ', 'E) ') })) })),
+    [a, changed(b, { icaoLocations: ['KZOA', 'KZLA'] })],
+  ]) assert.equal(resolveNotamRevision(pair).kind, 'unresolved', 'incomplete or unbound evidence must not establish scope');
+  assert.equal(collectNotamRecords({ records: [], issues: [{ ...fra, variantsTruncated: true }] }, fra.variants).issues?.length, 1);
 });
 
 test('native header padding composes with station/FIR roles and survives every retained rendering', () => {
@@ -248,6 +353,7 @@ for (const fixture of [
   { name: 'LSU/VIO and omitted years', at: Date.parse(capture.capturedAt), scopes: issues.slice(1), years: yearCases.slice(0, 3) },
   { name: 'FIM', at: fimCapture.checkedAt, scopes: [fim], years: [] },
   { name: 'FIM native padding', at: fimCapture.checkedAt, scopes: [{ ...fim, variants: [...fim.variants, paddedNative(fim.variants[1]!)] }], years: [] },
+  { name: 'FRA ICAO station and FIR roles', at: Date.parse(fraCapture.capturedAt), scopes: [fra], years: [] },
 ]) test(`authenticated restore clears ${fixture.name}, serves every retained scope, and preserves clocks and admission`, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'notam-omission-scopes-')), state = join(directory, 'production');
   const at = fixture.at;
@@ -277,6 +383,7 @@ for (const fixture of [
           const station = app.notams.readNavaid({ navaidId: issue.locations[0]! })!;
           assert.ok(station.records.some(r => r.id === issue.id)); assert.deepEqual(station.issues, []);
           for (const code of issue.icaoLocations) {
+            if (code === issue.locations[0]) continue; // Already checked by its exact navaid selector.
             const snapshot = code.startsWith('KZ') ? app.notams.readRegion({ firId: code })! : app.notams.readAirport({ icaoId: code })!;
             assert.ok(snapshot.records.some(r => r.id === issue.id)); assert.deepEqual(snapshot.issues, []);
           }

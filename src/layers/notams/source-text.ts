@@ -24,8 +24,12 @@ export function fdcBodyForms(record: NotamRecord, translation: string): Set<stri
   if (notice.office !== 'FDC' || record.classification !== 'FDC' || record.series || !/^\d{4}$/.test(record.year) ||
     !record.year.endsWith(year!) || numberContent(record.number) !== numberContent(number!) ||
     !record.locations.includes(notice.location) || !noticeIntervalMatches(record, notice)) return;
-  const { subject, body } = notice, interval = `${notice.start}-${notice.end}`;
-  return new Set([body, `${subject} ${body}`, `${body} ${interval}`, `${subject} ${body} ${interval}`]);
+  const { subject, body, preamble, subjectSeparator } = notice;
+  // Only the keyword is optional. State text, punctuation and qualifiers remain
+  // content in every form, including when the structured body omits the keyword.
+  const bodies = [preamble + body, `${preamble}${subject}${subjectSeparator}${body}`];
+  const intervals = ['', ' '].flatMap(left => ['', ' '].map(right => `${notice.start}${left}-${right}${notice.end}`));
+  return new Set(bodies.flatMap(text => [text, ...intervals.map(interval => `${text} ${interval}`)]));
 }
 /** Recover a missing subject only through the same complete-body equivalence
  * used by collection. Multiple local representations must agree. Return source

@@ -199,7 +199,8 @@ test('captured filing-scope content remains usable while health distinguishes as
         applicability: { state: 'upcoming', fixedEndAt: issue.variants[0]!.endsAt, nextTransitionAt: issue.variants[0]!.startsAt },
         reason: 'revision-conflict', locations: ['49D'], blocking: false,
         fields: ['icaoLocations'], icaoLocationVariants: issue.variants.map(v => v.icaoLocations), affectedIcaoQueries: [], affectedLocationQueries: [],
-        comparisons: [{ outcome: 'contradictory', fields: ['icaoLocations'], proof: 'exact', reason: null }],
+        comparisons: [{ outcome: 'contradictory', fields: ['icaoLocations'], proof: 'exact', reason: null,
+          association: { outcome: 'unproven', attempts: [{ witness: 'supplied-scopes', reason: 'scope-roles-unproven' }] } }],
         variantsTruncated: false, unscoped: false, impact: 'metadata-only', operatorAction: 'none',
         resolution: 'A newer reconciled source revision or qualified full-snapshot withdrawal can clear the retained issue.' }], samplesTruncated: false });
     const index = new NotamIndex(() => at); index.publish(generation);

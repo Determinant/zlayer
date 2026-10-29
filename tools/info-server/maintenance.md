@@ -115,6 +115,25 @@ representations from established differences. These diagnostics grant no readine
 exception. Current unresolved content and incomplete evidence remain blocking;
 complete agreeing fixed intervals can become historical under the
 [issue-impact contract](../../src/layers/notams/README.md#issue-impact-over-time).
+When supplied associations differ, a comparison also includes `association` from
+the same evaluation that supplies merge values. A successful proof reports
+`outcome: proved`, its `domestic` or `icao` witness and the supplied scopes. A
+failure reports `outcome: unproven` and at most two `attempts`, each with a witness
+and its first failed check. Common prerequisites use `witness: supplied-scopes`;
+otherwise the native and ICAO paths each explain why they could not bind.
+
+Examples include `missing-icao-witness`, `fir-mismatch`,
+`icao-identity-or-interval-mismatch`, `schedule-mismatch`,
+`translation-type-unsupported`, `local-syntax-unsupported` and `scope-count-limit`.
+`icao-rendering-or-body-unproven` deliberately does not assert whether an
+unrecognized rendering or an unmatched complete body caused the evidence check
+to fail. `scope-roles-unproven` does not claim a supplied code is invalid; it says
+the supported station/FIR relationship was not established. These are proof
+failures, not instructions to rewrite source fields. Each path stops at its first
+failure, so the attempts are not an exhaustive validation report. A proved
+association cannot override a separate content, identity or lifecycle failure.
+Equal or omitted associations need no failed-association diagnostic.
+
 Samples include source revision, diagnostic first/latest observations, source
 kinds, applicability and the next clock transition. Historical issues remain raw
 evidence and produce their own warning, independently of association metadata.
@@ -148,7 +167,8 @@ all facts within a source notice are correct.
 
 Revision decisions additionally report `source-year-omission` for a supplied
 numbering year backed by complete matching notice evidence, and
-`complementary-association-scopes` for the qualified native station/FIR case.
+`complementary-association-scopes` for a station/FIR relationship established by
+either complete native evidence or a complete ICAO identity and field-role witness.
 Records retain the actual year spellings in `sourceYears` and original association
 sets in `sourceIcaoLocations`; the latter establishes source lookup membership,
 not airport aliases. Both rules run during collection and authenticated restore,

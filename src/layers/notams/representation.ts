@@ -1,3 +1,5 @@
+import { isNotamSubject } from './subjects';
+
 /** Lossless lexical evidence for source comparison. Values are comparison views;
  * token spans always address the original string, including escaped characters. */
 export type RepresentationToken = { value: string; start: number; end: number };
@@ -47,13 +49,14 @@ export type IcaoNotice = { format: 'icao'; identity: string; change: 'N' | 'R' |
   body: string; lower: string; upper: string; segments: BodySegment[]; representation: Representation };
 export type IcaoContent = Omit<IcaoNotice, 'segments' | 'representation'>;
 export type LocalNotice = { format: 'local'; office: string; number: string; location: string; subject: string;
+  /** State text and the subject/body separator are retained, never inferred or discarded. */
+  preamble: string; subjectSeparator: string;
   start: string; end: string; body: string; segments: BodySegment[]; representation: Representation };
 const identity = /^(?:[A-Z]\d{4}\/\d{2}|\d{2}\/\d{3})$/;
 const startTime = /^\d{10}$/;
 const endTime = /^(?:\d{10}(?:EST)?|PERM)$/;
 const location = /^[A-Z0-9]{2,8}$/;
 const fieldMarker = /^[A-GQ]\)$/;
-const subjects = new Set(['IAP', 'SID', 'STAR', 'ODP', 'ROUTE', 'VFP', 'SPECIAL']);
 
 class Cursor {
   position = 0;
@@ -70,6 +73,11 @@ class Cursor {
    * source rather than inserting whitespace or splitting body prose globally. */
   takeField(marker: string) {
     if (!this.atField(marker)) return false;
+    return this.takePrefix(marker);
+  }
+  /** Split only a prefix recognized by the current grammar state. */
+  takePrefix(marker: string) {
+    if (!this.peek()?.startsWith(marker)) return false;
     if (this.take(marker)) return true;
     const token = this.tokens[this.position]!, source = this.representation.source;
     let end = token.start + marker.length;
@@ -249,14 +257,17 @@ export function parseIcaoNotice(source: string, options: { allowMissingEnd?: boo
     body: ordered.map(part => part!.body).join(' '), segments: ordered.flatMap(part => part!.segments) } };
 }
 
-/** Local envelopes own their leading identity and one terminal interval. Body
- * prose, including repeated headings, is never removed or interpreted here. */
+/** FAA local envelopes own the leading identity, keyword and terminal interval.
+ * Chapter 7 permits state prefixes for ROUTE/AIRSPACE. Dots remain literal
+ * evidence at lexical boundaries; this is not punctuation correction. */
 export function parseLocalNotice(source: string): RepresentationResult<LocalNotice> {
   const representation = noticeRepresentation(source, true);
   if (!representation) return fail('limit');
   const cursor = new Cursor(representation);
-  let state: 'office' | 'number' | 'location' | 'subject' | 'body' | 'done' = 'office';
-  const result: LocalNotice = { format: 'local', office: '', number: '', location: '', subject: '', start: '', end: '', body: '', segments: [], representation };
+  let state: 'office' | 'number' | 'location' | 'preamble' | 'subject' | 'body' | 'done' = 'office';
+  let hasState = false;
+  const result: LocalNotice = { format: 'local', office: '', number: '', location: '', subject: '',
+    preamble: '', subjectSeparator: ' ', start: '', end: '', body: '', segments: [], representation };
   while (state !== 'done') {
     switch (state) {
       case 'office':
@@ -270,20 +281,49 @@ export function parseLocalNotice(source: string): RepresentationResult<LocalNoti
       case 'location':
         result.location = cursor.word(/^[A-Z0-9]{3,5}$/) ?? '';
         if (!result.location) return fail('header');
-        state = result.office === 'FDC' ? 'subject' : 'body'; break;
-      case 'subject':
-        if (!subjects.has(cursor.peek() ?? '')) return fail('header');
-        result.subject = cursor.peek()!; cursor.position++; state = 'body'; break;
+        state = result.office === 'FDC' ? 'preamble' : 'body'; break;
+      case 'preamble': {
+        // Preserve the complete state spelling and its separators. A two-letter
+        // token is syntax, not an inferred geographic association.
+        let count = 0;
+        for (;;) {
+          if (cursor.take('(U)')) { result.preamble += '(U) '; break; }
+          const token = cursor.peek() ?? '', keyword = /^[A-Z]+(?=$|\.)/.exec(token)?.[0];
+          if (keyword && isNotamSubject(keyword)) break;
+          if (count >= 32) return fail('limit');
+          const prefix = /^[A-Z]{2}(?:[\/,][A-Z]{2}){0,31}(?:\.{2,3}(?=[A-Z]|$)|(?=$))/.exec(token)?.[0];
+          if (!prefix) return fail('header');
+          count += prefix.split(/[\/,]/).length;
+          if (count > 32) return fail('limit');
+          hasState = true;
+          cursor.takePrefix(prefix);
+          result.preamble += prefix + (prefix === token ? ' ' : '');
+        }
+        state = 'subject'; break;
+      }
+      case 'subject': {
+        const token = cursor.peek() ?? '', subject = /^[A-Z]+(?=$|\.)/.exec(token)?.[0];
+        if (!subject || !isNotamSubject(subject) || hasState && subject !== 'ROUTE' && subject !== 'AIRSPACE') return fail('header');
+        result.subject = subject; result.subjectSeparator = subject === token ? ' ' : '';
+        cursor.takePrefix(subject); state = 'body'; break;
+      }
       case 'body': {
-        const from = cursor.position, last = representation.tokens.length - 1;
-        const interval = representation.tokens[last]?.value.split('-');
-        if (!interval || interval.length !== 2 || !startTime.test(interval[0]!) || !endTime.test(interval[1]!)) return fail('interval');
+        const from = cursor.position, tokens = representation.tokens;
+        // §4-2-1 and Appendix A permit spaces around the interval hyphen.
+        // Consume at most three terminal tokens, never a date inside body prose.
+        let last = tokens.length, interval: RegExpExecArray | null = null;
+        for (let size = 1; size <= 3 && tokens.length - size > from; size++) {
+          last = tokens.length - size;
+          interval = /^(\d{10})\s*-\s*(\d{10}(?:EST)?|PERM)$/.exec(tokens.slice(last).map(t => t.value).join(' '));
+          if (interval) break;
+        }
+        if (!interval) return fail('interval');
         const segment = cursor.segment(from, last);
         if (!segment) return fail('body');
         // Multipart local notices need a separately qualified assembly grammar.
-        if (representation.tokens.slice(from, last).some((token, i, tokens) => token.value === 'PART' &&
+        if (representation.tokens.slice(from, last).some((token, i, tokens) => /(?:^|\.)PART$/.test(token.value) &&
           /^\d+$/.test(tokens[i + 1]?.value ?? '') && tokens[i + 2]?.value === 'OF')) return fail('multipart');
-        result.start = interval[0]!; result.end = interval[1]!; result.body = segment.text; result.segments = [segment];
+        result.start = interval[1]!; result.end = interval[2]!; result.body = segment.text; result.segments = [segment];
         cursor.position = representation.tokens.length; state = 'done'; break;
       }
     }

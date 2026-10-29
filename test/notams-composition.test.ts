@@ -13,7 +13,9 @@ import schedules from './fixtures/notams-schedule-2026-10-13.json';
 import scopes from './fixtures/notams-state-2026-10-16.json';
 import ewr from './fixtures/notams-ewr-designator-2026-10-22.json';
 import fim from './fixtures/notams-fim-association-2026-10-22.json';
+import fra from './fixtures/notams-fra-association-2026-10-28.json';
 import { aixm, departureNotice, notice } from './fixtures/notams';
+import { fdcHeaderCases, localGrammarNotice } from './fixtures/notams-local-grammar';
 import { permutations, batchPartitions } from './helpers/permutations';
 import { recordWithRevision, createNotamXmlParser } from '../tools/info-server/notams/normalize';
 import { compareNotamContent, resolveNotamRevision } from '../tools/info-server/notams/revision';
@@ -51,6 +53,36 @@ function assertSequence(variants: NotamRecord[], lifecycle: NotamRecord['lifecyc
   }
   return result.records[0]!;
 }
+
+test('specified local headers compose with body wrappers, years, counters, UTC forms and cancellation', () => {
+  for (const header of fdcHeaderCases) for (const end of ['2610051200', '2610051200EST', 'PERM']) {
+    const { record: full, withoutSubject, interval } = localGrammarNotice(header, end);
+    for (let mask = 0; mask < 16; mask++) {
+      const brief = changed(full, { year: mask & 1 ? '' : full.year,
+        text: `${mask & 2 ? full.text : withoutSubject}${mask & 4 ? ` ${interval.replace('-', ' - ')}` : ''}`,
+        number: '001001', icaoLocations: [], sequence: 3, correction: 2,
+        effectiveStart: new Date(full.startsAt!).toISOString(),
+        translations: full.translations.map(t => ({ ...t, text: mask & 8
+          ? `<pre>\n${t.text.replace(interval, interval.replace('-', ' - ')).replaceAll(' ', '\n  ')}\n</pre>` : t.text })),
+      });
+      const xml: NotamRecord[] = [];
+      for (const r of [full, brief]) {
+        const parser = createNotamXmlParser(r => xml.push(r), { count: 1, snapshotAt: full.updatedAt });
+        parser.write(aixm(r)); parser.finish();
+      }
+      for (const pair of [[full, brief], xml]) {
+        try {
+          const resolved = assertSequence(pair, 'active');
+          assertSequence([pair[0]!, cancel(pair[1]!)], 'cancelled');
+          for (const translation of pair.flatMap(r => r.translations))
+            assert.ok(resolved.translations.some(t => t.text === translation.text));
+          assert.deepEqual(resolved.sourceCounters, [{ sequence: 1, correction: 0 }, { sequence: 3, correction: 2 }]);
+        } catch (cause) { throw new Error(JSON.stringify({ header, end, mask, xml: pair === xml,
+          decision: compareNotamContent(pair[0]!, pair[1]!) }), { cause }); }
+      }
+    }
+  }
+});
 
 test('captured DWH cancellation composes with witnessed year omission through XML, ordering and batching', () => {
   const parsed: NotamRecord[] = [];
@@ -317,7 +349,7 @@ test('captured designator spellings compose with identity, omissions, counters, 
 });
 
 test('year, schedule and complementary-scope proofs compose across three observations and lifecycle transitions', () => {
-  for (const issue of [...schedules.issues, ...scopes.issues.slice(1), ...fim.issues]) {
+  for (const issue of [...schedules.issues, ...scopes.issues.slice(1), ...fim.issues, ...fra.issues]) {
     const [a, b] = issue.variants.map(record) as [NotamRecord, NotamRecord];
     const missing = changed(b, { year: '' });
     assertSequence([a, b, missing], 'active');
@@ -331,6 +363,23 @@ test('year, schedule and complementary-scope proofs compose across three observa
     const replayed = collectNotamRecords(inactive, [changed(missing, { translations: [] })]);
     assert.equal(replayed.issues?.length ?? 0, 0); assert.equal(replayed.records[0]?.lifecycle, 'cancelled');
     assert.deepEqual(replayed.records[0]?.sourceYears, ['', b.year]);
+  }
+});
+
+test('ICAO station/FIR roles compose with source omissions, counters, lexical forms and cancellation', () => {
+  const [a, b] = fra.issues[0]!.variants.map(record) as [NotamRecord, NotamRecord];
+  for (let mask = 0; mask < 64; mask++) {
+    const partial = changed(b, { year: mask & 1 ? '' : b.year, number: mask & 2 ? b.number.padStart(6, '0') : b.number,
+      ...(mask & 4 ? { sequence: 3, correction: 2 } : {}), icaoLocations: mask & 8 ? [] : b.icaoLocations,
+      translations: mask & 16 ? [] : b.translations.map(t => ({ ...t, text: `\n ${t.text.replaceAll(' ', '  ')}\n` })),
+      ...(mask & 32 ? { effectiveStart: new Date(b.startsAt!).toISOString(), effectiveEnd: new Date(b.endsAt!).toISOString(),
+        sourceUpdatedAt: b.sourceUpdatedAt.replace('.000Z', 'Z'), issuedAt: b.issuedAt! + 1000 } : {}),
+    });
+    try {
+      const resolved = assertSequence([a, b, partial], 'active');
+      assert.deepEqual(resolved.icaoLocations, ['FRA', 'KZOA']);
+      assertSequence([a, partial, cancel(b)], 'cancelled');
+    } catch (cause) { throw new Error(`ICAO station/FIR mask=${mask}`, { cause }); }
   }
 });
 

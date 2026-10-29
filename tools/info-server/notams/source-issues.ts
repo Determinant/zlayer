@@ -20,8 +20,8 @@ export function classifyNotamIssue(issue: NotamSourceIssue, now = Date.now()) {
 export function describeNotamIssue(issue: NotamSourceIssue, classification: ReturnType<typeof classifyNotamIssue>) {
   const { resolved, blocking, affectedIcaoQueries, affectedLocationQueries, applicability } = classification;
   const comparisons = issue.variants.slice(1).map(variant => {
-    const { outcome, fields, text } = compareNotamContent(issue.variants[0]!, variant);
-    return { outcome, fields, proof: text.proof, reason: text.failure };
+    const { outcome, fields, text, association } = compareNotamContent(issue.variants[0]!, variant);
+    return { outcome, fields, proof: text.proof, reason: text.failure, ...(association ? { association } : {}) };
   });
   const fields = [...new Set(comparisons.flatMap(comparison => comparison.fields))].sort();
   return { id: issue.id, kind: resolved ? 'association' as const : 'content' as const,

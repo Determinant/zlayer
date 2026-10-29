@@ -1,0 +1,108 @@
+{
+  "capturedAt": "2026-10-28T23:08:05.011Z",
+  "provenance": "Retained production NMS delta conflict, read from the authenticated checkpoint; normalized records and every supplied translation preserved. No FAA request was made for this capture.",
+  "issues": [
+    {
+      "id": "1793227411385478",
+      "reason": "revision-conflict",
+      "variants": [
+        {
+          "id": "1793227411385478",
+          "sourceId": "NMS_ID_1793227411385478",
+          "classification": "INTL",
+          "number": "1526",
+          "series": "A",
+          "year": "2026",
+          "locations": [
+            "FRA"
+          ],
+          "icaoLocations": [
+            "FRA"
+          ],
+          "accountability": "KZOA",
+          "issuedAt": 1793227380000,
+          "updatedAt": 1793227380000,
+          "sourceUpdatedAt": "2026-10-28T22:43:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1793289600000,
+          "endsAt": 1793318340000,
+          "effectiveStart": "202610291600",
+          "effectiveEnd": "202610292359",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "FRA NAV VORTAC U/S",
+          "translations": [
+            {
+              "type": "OTHER:ICAO",
+              "text": "<pre>\nA1526/26 NOTAMN\nQ) KZOA/QNTAS////000/999/3706N11935W005\nA) KZOA\nB) 2610291600\nC) 2610292359\nE) FRA NAV VORTAC U/S\n</pre>"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "c0b31e89167db380d19b17d878bc3317d475dfa50baf74ecf41947bd1b25e9e6"
+        },
+        {
+          "id": "1793227411385478",
+          "sourceId": "NMS_ID_1793227411385478",
+          "classification": "INTL",
+          "number": "1526",
+          "series": "A",
+          "year": "2026",
+          "locations": [
+            "FRA"
+          ],
+          "icaoLocations": [
+            "KZOA"
+          ],
+          "accountability": "KZOA",
+          "issuedAt": 1793227380000,
+          "updatedAt": 1793227380000,
+          "sourceUpdatedAt": "2026-10-28T22:43:00.000Z",
+          "canceledAt": "",
+          "referred": null,
+          "startsAt": 1793289600000,
+          "endsAt": 1793318340000,
+          "effectiveStart": "202610291600",
+          "effectiveEnd": "202610292359",
+          "endKind": "fixed",
+          "schedule": "",
+          "changeType": "N",
+          "lifecycle": "active",
+          "text": "FRA NAV VORTAC U/S",
+          "translations": [
+            {
+              "type": "LOCAL_FORMAT",
+              "text": "!RIU 10/205 FRA NAV VORTAC U/S 2610291600-2610292359"
+            },
+            {
+              "type": "OTHER:ICAO",
+              "text": "A1526/26 NOTAMN Q) KZOA/QNTAS////000/999/3706N11935W005 A) KZOA B) 2610291600 C) 2610292359 E) FRA NAV VORTAC U/S"
+            }
+          ],
+          "sequence": 1,
+          "correction": 0,
+          "revision": "cf4f757b72900794af2ba7eeb57e2ea63d51982c4c8f450c8bc262790be99cf7"
+        }
+      ],
+      "observations": {
+        "firstSeenAt": 1793227645024,
+        "lastSeenAt": 1793228273726,
+        "kinds": [
+          "delta"
+        ]
+      },
+      "variantsTruncated": false,
+      "locations": [
+        "FRA"
+      ],
+      "icaoLocations": [
+        "FRA",
+        "KZOA"
+      ],
+      "unscoped": false
+    }
+  ]
+}

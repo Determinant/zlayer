@@ -17,7 +17,7 @@ export type NotamRecord = {
   /** Query projection: conflicting source association sets, with only their
    * intersection in icaoLocations. Primary filing locations remain agreed. */
   icaoLocationVariants?: string[][];
-  /** Original source sets when complete native/FIR evidence establishes
+  /** Original source sets when complete notice/FIR evidence establishes
    * complementary lookup scopes. icaoLocations is their union, not an alias. */
   sourceIcaoLocations?: string[][];
   /** Actual numbering-year spellings retained after a witnessed omission. */

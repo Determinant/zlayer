@@ -9,8 +9,9 @@ Acquisition, source ordering, cancellation and publication have separate owners.
 
 ## Authority and applicability
 
-The implementation uses the following sources, reviewed on 2026-10-12. Standards
-describe fields and processing principles; captured NMS evidence qualifies the
+The implementation uses the following sources, with the local-envelope review
+updated on 2026-10-28. Standards describe fields and processing principles;
+captured NMS evidence qualifies the
 specific distribution transformations we automate. A documented manual correction
 procedure does not authorize the server to guess a missing fact.
 
@@ -19,6 +20,8 @@ procedure does not authorize the server to guess a missing fact.
 | NMS API 1.0.18, revised 2026-02-12, supplied production OpenAPI | AIXM 5.1 delivery, source-ID queries, updated active/inactive records and bulk acquisition | Namespace-aware `normalize.ts`, bounded collection and existing durable acquisition policy; do not silently migrate to AIXM 5.2 |
 | [AIXM 5.1 Event schema](https://aixm.aero/schema/5.1/event/Event_Features.xsd), `NOTAMPropertyGroup` and `NOTAMTranslationPropertyGroup` | Separate identity, issue time, effective interval, Q qualifiers, E text, F/G limits and translations; `year` belongs to the NOTAM number, not its effective date | Preserve the structured fields in our record contract and retained translations independently; schema structure alone establishes neither NMS revision precedence nor which conflicting rendering is authoritative |
 | [FAA Order 7930.2U](https://www.faa.gov/regulations_policies/orders_notices/index.cfm/go/document.current/documentNumber/7930.2), including [Change 2 dated 2026-09-30](https://www.faa.gov/documentLibrary/media/Order/7930.2U_Chg_2_dtd_9_30_26_Final.pdf), §8-1-2 and [Appendix B](https://www.faa.gov/air_traffic/publications/atpubs/notam_html/appendix_b.html) | Ordered Q/A/B/C/D/E/F/G fields; replacement/cancellation references; selection-code meanings | Explicit parser states, preserved field boundaries and references; parsing R/C syntax does not grant N-only comparison relaxations |
+| FAA 7930.2U [§1-2-1](https://www.faa.gov/air_traffic/publications/atpubs/notam_html/chap1_section_2.html), [§4-2-1](https://www.faa.gov/air_traffic/publications/atpubs/notam_html/chap4_section_2.html), [chapter 7](https://www.faa.gov/air_traffic/publications/atpubs/notam_html/chap7_section_1.html) and [Appendix A](https://www.faa.gov/air_traffic/publications/atpubs/notam_html/appendix_a.html) | Complete keyword vocabulary, local field order, state prefixes, validity syntax and qualifiers | Shared vocabulary and bounded local field states; preserve every prefix/qualifier and punctuation character. These sections do not define NMS local multipart assembly. |
+| [FAA Order 8260.19K](https://www.faa.gov/documentLibrary/media/Order/Order_8260.19K.pdf), §§4-5-6 and 8-3-4 | Procedure-amendment administration refers NOTAM requirements to 7930.2 | No additional local transport grammar or permission to rewrite procedure prose |
 | [EUROCONTROL OPADD 4.1](https://www.eurocontrol.int/sites/default/files/2021-07/eurocontrol-guidelines-opadd-ed4-1.pdf), ch. 3, §§3.9–3.12, 3.18 (pp. 89–93) and 6.2.2 | Distinct syntax correction, data correction and editing; original evidence retention; query warnings; E-based selection-code correction, QXXXX replacement and purpose upgrades; multipart processing | Lossless parsing separate from correction policy; complete evidence for each transformation; uncertainty is not resolved by arrival order |
 | [FAA-distributed foreign NOTAM PDF](https://notams.aim.faa.gov/notamSearch/createNotamPdf?transactionid=76687894) and [retained OBBI variants](../../../test/fixtures/notams-obbi-2026-10-12.json) | A USNOF foreign-data disclaimer is distribution material; NMS can append the expanded wording to both E text and its ICAO rendering | Recognize only the two evidenced terminal statements in active INTL NOTAMN records, then require complete envelope/body equivalence |
 
@@ -171,6 +174,18 @@ truncated evidence.
 invented transformations and expected identity/lifecycle outcomes. Extend that
 matrix when adding a rule; replaying the current conflict cohort alone is
 insufficient qualification. Run `npm run test:info:notams` for this server boundary.
+
+`test/notams-generated.test.ts` also builds notices independently of captured
+records. Its fixed seed makes supplementary identities, formatting and omission
+choices reproducible; every FAA keyword is crossed with fixed/estimated/permanent
+expiry and present/absent D schedules. It sends the generated representations
+through chunked AIXM ingestion, all three-observation arrival orders and batch
+partitions, sparse repeats, rebasing, cancellation and authenticated restore.
+Rotating contrary observations exercise identity, year, interval, schedule, body,
+Q/A fields, limits, unsupported translations and a third scope while unrelated IDs
+advance. Failure output includes the seed and case parameters. The grammar comes
+from FAA §1-2-1 and §8-1-2; omission and scope reconciliation expectations come from
+this project's rules. Invented bodies test preservation, not operational validity.
 
 Treat presentation, optional metadata and field roles as independent dimensions.
 For example, domestic/international headers, station/FIR A fields, keyword and
@@ -353,25 +368,35 @@ with schedules, counters, padding and lookup scopes.
 
 ### Complementary station and FIR scopes
 
-`complementary-association-scopes` is a query-membership policy qualified by the retained
-[LSU/VIO examples](../../../test/fixtures/notams-state-2026-10-16.json) and
-[FIM conversion](../../../test/fixtures/notams-fim-association-2026-10-22.json), not a
-general location-correction rule. FAA 7930.2U §8-1-2 identifies item A as an
-aerodrome **or FIR** scope. The NMS extension exposes both through the same
-`icaoLocation` field. A complete native notice can therefore arrive once with
-a source-supplied station-prefixed lookup and once with an explicit FIR lookup.
+`complementary-association-scopes` is a query-membership policy grounded in
+[FAA 7930.2U §8-1-2](https://www.faa.gov/air_traffic/publications/atpubs/notam_html/chap8_section_1.html):
+item A identifies an aerodrome **or FIR**, independently of the affected station.
+The NMS extension exposes supplied station and FIR lookups through the same
+`icaoLocation` field. The retained [LSU/VIO](../../../test/fixtures/notams-state-2026-10-16.json),
+[FIM](../../../test/fixtures/notams-fim-association-2026-10-22.json) and
+[FRA](../../../test/fixtures/notams-fra-association-2026-10-28.json) examples qualify
+these distribution forms. The project policy preserves proved query memberships;
+it is not a general location correction or a claim that FAA mandates their union.
 
-Only active DOMESTIC NOTAMN observations with one identical three-letter filing
-location, matching complete native notices and agreeing supplied numbering years
-qualify. Every original association set must contain exactly one code; the two
-distinct codes must be `K` plus that filing location and a `KZ..` FIR scope.
-At least one complete ICAO-layout NOTAMN conversion must witness the supplied FIR
-in Q. A may identify the filing station, its supplied prefixed lookup or the FIR;
-these fields have different roles and need not contain identical codes. A domestic
-header must match the complete native notice's month/number, allowing decimal zero
+Active NOTAMN observations must share one identical primary filing location.
+Each original association set must contain exactly one code. The two supplied codes
+must identify that exact station or its explicitly supplied `K`-prefixed lookup
+for the existing three-letter station profile, plus one four-letter FIR. No code is
+manufactured, and Q must explicitly witness the candidate FIR. Two different
+FIRs, multiple codes in an original set, more than two supplied scope sets and
+arbitrary airport pairs remain unresolved. Identity, source ordering and all unaffected fields still pass the
+ordinary comparator. Either of two complete notice witnesses can establish roles.
+
+**Domestic identity:** DOMESTIC records with one three-letter filing location,
+matching complete local notices and agreeing supplied numbering years retain
+their existing proof. At least one complete ICAO-layout NOTAMN conversion must
+witness the supplied FIR in Q. A may identify the filing station, its supplied
+prefixed lookup or the FIR; these fields have different roles. A domestic header
+must match the complete native notice's month/number, allowing decimal zero
 padding in every retained native rendering and conversion. Month changes remain
-different identities. An international header must have a year suffix matching the supplied
-numbering year. Two absent years remain absent; dates never manufacture a year.
+different identities. An international conversion header must have a year suffix
+matching the supplied numbering year. Two absent years remain absent; dates never
+manufacture a year.
 
 Every conversion must match the interval, schedule and entire native body. The
 body may carry the filing station prefix or omit its single leading domestic
@@ -388,13 +413,45 @@ native notice number, station, interval and NAV body, and the same Q FIR, must
 all agree. Its missing reference supplies no lifecycle or FIR authority. Unknown
 translations, different FIRs, changed content and arbitrary airport pairs fail.
 
-The resolved record keeps **both** supplied lookup codes in `icaoLocations` and
+**ICAO identity:** a complete ICAO NOTAMN can bind series/number/year directly,
+independently of the classification label. Every ICAO rendering must account for
+its complete structured body and agree on the whole envelope, including Q,
+schedule and F/G limits. Both Q's FIR and the single item A must equal the supplied
+FIR; the complete E body must start with the exact filing-station token. The
+identity, interval and every supplied schedule must bind to each record. A missing
+structured schedule may fit a complete D-field witness; after scope proof, the
+ordinary schedule-omission comparator must independently establish the hours.
+Unknown translations and contradictory supplied schedules cannot use this path.
+
+Optional local renderings must parse completely and agree on their domestic
+identity, accountability, station, interval and entire body. Their body may use
+the same station-prefix/leading-keyword conversion rule above, but the local
+number never establishes or replaces the record's ICAO identity. Local state
+preambles and unsupported body/schedule conversions do not qualify. In the FRA
+capture, A1526/26 and `!RIU 10/205` are separate retained numbering schemes for
+the same supplied source ID; the former binds the international record, and both
+ICAO renderings explicitly name KZOA in Q and A.
+
+Scope proof does not bypass the independent text comparator. For example, entity
+decoding in a differently numbered local rendering of an INTL/MIL record still
+needs native representation authority; a successful ICAO scope proof alone does
+not supply it. That unsupported composition remains an issue with all originals.
+
+The resolved record keeps **all** proved supplied lookup codes in `icaoLocations` and
 their original singleton sets in `sourceIcaoLocations`. This asserts source
 query membership; it does not identify either code as an alias for the other.
 It neither guesses a geographic scope nor removes a source association. A sparse
-repeat cannot withdraw the established scopes; retained native evidence must
-still bind to the incoming fields. PJOH/PACV and other airport-to-airport disputes
+repeat cannot withdraw the established scopes; retained local or ICAO evidence must
+still bind to the incoming fields, and every newly supplied rendering must agree.
+PJOH/PACV and other airport-to-airport disputes
 keep their existing intersection projection and remain unresolved globally.
+
+The scope evaluation returns either the proved supplied codes and witness, or
+the first failed check for each attempted witness. The merge consumes those same
+values; diagnostics do not rerun a weaker interpretation. Health includes this
+explanation for differing supplied associations alongside the independent text
+proof and differing fields. The [maintenance guide](../../../tools/info-server/maintenance.md)
+documents the bounded diagnostic shape and interpretation.
 
 ### Comparison and retention
 
@@ -440,6 +497,65 @@ whole-dataset release replay or a claim that production was deployed or healthy.
 The existing [collection contract](README.md#collection-and-delivery) additionally
 owns schedule supplementation, estimated-end derivation, cancellation, association
 projection, truncation and replay. These are independent of text equivalence.
+
+### FAA local-envelope grammar
+
+`subjects.ts` owns the complete 20-keyword vocabulary in FAA 7930.2U §1-2-1.
+The local-envelope parser, domestic conversion proof and interpretation labels
+share it. In particular, `CHART`, `DATA`, `DVA`, `AIRSPACE` and `SECURITY` are not
+special cases added when a production notice fails. Recognizing a keyword does
+not validate its operational use or change the notice's classification.
+
+The local machine consumes accountability, number, location, optional preamble,
+keyword, complete body and one terminal validity interval. Chapter 7 permits
+state text before `ROUTE` and `AIRSPACE`; the bounded preamble accepts up to 32
+two-letter groups, including slash/comma lists. An optional `(U)` immediately
+before the keyword remains unverified-source evidence. State text and `(U)`
+remain in **every** body comparison form. They are not inferred from an airport,
+added to query associations or dropped to make two records agree. Military-use
+text after a keyword remains ordinary significant body content.
+
+The lexer recognizes attached dots only at these header boundaries and preserves
+them exactly: `MN..ROUTE` retains `MN..`, while `SECURITY...SPECIAL` retains
+`...SPECIAL` in the body. This recognizes words in their grammar positions; it
+does not assert that dotted and undotted spellings are equivalent. Unknown
+keywords, arbitrary leading prose and a state prefix before another keyword
+cannot establish a native proof. `...SPECIAL NOTICE...` is not inferred to be a
+SPECIAL instrument procedure.
+
+The interval has a ten-digit start, a hyphen, and a ten-digit end optionally
+followed immediately by `EST`, or the literal `PERM`. Appendix A uses spaces
+around the hyphen; all four spacing choices share the same interval fields.
+The validity scanner also recognizes those spaces when qualifying a supplied
+estimated end. Changed endpoints and conflicting estimates remain significant.
+
+The existing FDC comparison policy permits omission of the single recognized
+keyword and/or terminal interval only through complete record-bound native
+evidence. Every other word, preamble, qualifier and punctuation character remains
+required. That policy is distinct from the FAA syntax: neither the order nor the
+AIXM translation schema declares arbitrary renderings interchangeable.
+
+Local `PART n OF total` envelopes remain unsupported comparison evidence, including
+apparently complete sequences. The supplied NMS OpenAPI and FAQ do not specify
+their assembly, identity/interval repetition or footer rules, and the referenced
+FNS/AIDAP interface documents have not been obtained. OPADD §6.2 is a European
+ICAO profile with a letter-and-count suffix on the notice number and F/G only
+on the final part. It does not establish the NMS local profile or authorize
+stripping its markers. Existing NMS ICAO `PART` parsing and client transport
+interpretation are separate supported subsets, not full OPADD conformance.
+Missing parts, unknown profiles and unknown prose remain retained and unproven.
+
+The [October 28 retained variants](../../../test/fixtures/notams-fdc-chart-2026-10-28.json)
+contain an identical complete native chart-correction notice, an omitted structured
+year, primary bodies with and without the subject prefix, and differing auxiliary
+ICAO conversions. Recognizing the subject lets the existing `source-year-omission`
+and `local-notice` proofs account for those representations.
+
+The native envelope must still bind the notice identity, filing location, complete
+body and effective interval. Subject recognition does not interpret chart-correction
+prose or declare the auxiliary ICAO fields equal. Raw translations and year
+spellings survive collection, rebasing and authenticated restore; restore changes
+no source clocks or admission history.
 
 ### Surface identifier spelling
 
@@ -567,6 +683,15 @@ are not silently admitted as understood ICAO NOTAMN envelopes.
 
 Server-scoped conformance coverage:
 
+- `test/notams-generated.test.ts`: reproducible spec-derived envelope combinations,
+  chunked XML, all three-variant orders/partitions, conflicting third observations,
+  independent progress, cancellation, replay/rebase and two authenticated restores
+  without requests or clock/quota changes. Complete ICAO C-field EST evidence is
+  checked without a native interval; conflicting estimates stay unknown. Saved
+  fixed-end derivations upgrade during authenticated restore with every original
+  source field preserved, including after a second restart.
+  `test/notams-scope-diagnostics.test.ts` checks proof failures, successful witness
+  values, health propagation and the independence of scope and text decisions.
 - `test/notams-structured-fields.test.ts`: set membership, exact UTC equivalence,
   precision and invalid-date rejection, source-value preservation through XML,
   third contradictions, independent identity progress and full-snapshot rebasing.
@@ -574,11 +699,14 @@ Server-scoped conformance coverage:
   of omission, identity, counter and representation changes across source profiles
   and lifecycle states, plus authenticated restore without clock/quota changes.
 - `test/notams-omission-scopes.test.ts`: invented missing-year variants across
-  DOMESTIC/FDC/INTL/MIL, captured LSU/VIO/FIM complementary scopes, independent
+  DOMESTIC/FDC/INTL/MIL, captured LSU/VIO/FIM/FRA complementary scopes, independent
   header/A-field/validity/body-wrapper/format combinations, all delivery orders
   and batch partitions, sparse repeats, third contradictions, raw rendering
   retention/overflow and repeated authenticated restore with unchanged source
-  clocks/quota. The composition suite combines the FIM roles with omissions,
+  clocks/quota. ICAO role cases cover classification labels, bare/supplied-prefixed
+  station lookups, FIR spellings, every keyword, schedules, end semantics and
+  vertical limits, including the nearest contradictory fields and translations.
+  The composition suite combines the FIM and FRA roles with omissions,
   native/structured number padding, counters, UTC representations and cancellation;
   native headers are checked across modern and legacy conversions and surface
   designator proofs. International headers cannot supply a domestic number or
@@ -606,7 +734,20 @@ Server-scoped conformance coverage:
   replay, AIXM chunk decoding and authenticated restart with unchanged quota.
 - `test/notams-representation.test.ts`: independent field spacing combinations,
   lexical spans, ordering, multipart completeness, RKTI correction, replay and
-  HTTP publication/health after restore.
+  HTTP publication/health after restore. The captured CHART pair and constructed
+  omission/wrapper combinations exercise native authority, changed content and
+  identity, incomplete evidence and repeated restore with unchanged clocks/quota.
+- `test/notams-local-grammar.test.ts`: an independent FAA vocabulary expectation,
+  generated header/interval/encoding combinations with original source spans,
+  retained state/qualifier/punctuation constraints, unsupported multipart rejection
+  and repeated authenticated restore. Every keyword is checked with `(U)` and
+  attached punctuation; all 190 distinct keyword pairs must stay conflicting
+  even when their primary bodies omit the distinguishing keyword, across every
+  arrival order and delivery partition. Existing reader subject/evidence handling
+  is checked for all 20 plain keywords, independently of operational interpretation.
+  The composition suite combines these
+  invented cases with XML ingestion, missing years/associations, number padding,
+  counters, UTC spellings, body wrappers, cancellation, sparse replay and rebasing.
 - `test/notams-fdc-continuations.test.ts` and `test/notams-reconciliation.test.ts`:
   native authority, retained conflict families, schedules, associations,
   cancellations, full-sync/delta and persistence behavior.

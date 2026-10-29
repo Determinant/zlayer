@@ -1351,14 +1351,20 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
 
    Derived end kinds are compared after combining
    compatible optional evidence: a matching retained `EST` suffix can qualify
-   a representation whose missing local translation caused a fixed-end default.
+   a representation whose missing translation caused a fixed-end default.
    Different end instants, conflicting suffixes and unknown/permanent ends are
    not converted into estimated ends by this reconciliation.
 
-   FDC bodies may include or omit the subject (`IAP`, `SID`, `STAR`, `ODP`,
-   `ROUTE`, `VFP`, `SPECIAL`) and trailing validity interval. Reconcile those forms
-   only through an
-   identical complete `LOCAL_FORMAT` translation retained by both records, after
+   FDC bodies may include or omit a keyword from the complete FAA §1-2-1
+   vocabulary and the trailing validity interval. `subjects.ts` owns that shared
+   vocabulary, including `CHART`, `DATA`, `DVA`, `AIRSPACE` and `SECURITY`.
+   The [local-envelope grammar](source-comparison.md#faa-local-envelope-grammar)
+   recognizes state prefixes for ROUTE/AIRSPACE and an optional `(U)` qualifier;
+   these remain required content even when the keyword is omitted. Attached
+   header punctuation remains literal evidence. Spaces around the terminal
+   interval hyphen are accepted by both the envelope and estimated-end readers.
+   Reconcile those forms only through an identical complete `LOCAL_FORMAT`
+   translation retained by both records, after
    whitespace normalization. Its FDC number/year, airport, interval and end qualifier
    must match each record; both bodies must equal a supported form of that exact
    translation. Preserve the first raw body and all compatible translations. An
@@ -1370,6 +1376,9 @@ correct synchronized clock. Excess scheduler ticks never accumulate work.
    only when both records have the same known estimated end instant; fixed,
    permanent and unknown ends do not receive that tolerance. Original end spellings
    remain retained, and reconciliation never advances source time by itself.
+   Numbered local multipart envelopes still require an NMS assembly contract;
+   the supplied API documents and the different OPADD ICAO profile cannot
+   establish it. Their raw contents remain retained, without a guessed merge.
 
    All other notice fields, including lifecycle and effective-time qualifiers,
    remain exact. An unrecognized difference becomes an explicit source issue for
@@ -1535,12 +1544,16 @@ Publication builds these projections; query reads do no reconciliation or FAA wo
 
 Two qualified cases resolve through the ordinary comparator before that fallback:
 a supplied numbering year can supplement a witnessed omission, retaining both
-spellings in `sourceYears`; a complete shared native notice and matching FIR
-conversion can establish complementary station-prefixed and FIR lookup scopes,
+spellings in `sourceYears`; complete local or ICAO notice evidence can establish
+complementary station and FIR lookup scopes,
 retaining their union and original sets in `sourceIcaoLocations`. These are source
 query memberships, not airport aliases. The conversion binds Q's FIR and A's
 station/region roles independently, accepting either numbering format and a
-witnessed leading keyword omission without removing any native notice content. The
+witnessed leading keyword omission without removing any native notice content.
+The ICAO identity path binds every retained envelope to the same supplied FIR
+in Q and A and the affected station at the start of E, regardless of the
+classification label. It preserves bare and explicitly supplied prefixed station
+lookups and composes with the existing complete D-field schedule proof. The
 [field-specific proof rules](source-comparison.md#field-and-transformation-rules)
 require all unaffected fields and every retained rendering to agree. Populated
 year contradictions, arbitrary airport disputes and incomplete evidence still
@@ -2448,9 +2461,14 @@ inside a disregarded or conditional note do not look like operative amendments.
 
 Parse supported UTC validity forms and preserve `EST`/`PERM`/unknown-end meaning.
 Check the source body and every retained translation for compact validity ranges,
-including ranges before multipart footers. An `EST` range must agree with the
-structured end to the published minute; conflicting evidence stays unknown. Estimated
-and unknown ends remain visible for review after the stated end. Only a fixed end
+including ranges before multipart footers, and for the C field of a complete
+ICAO envelope. The existing field-state parser owns ICAO boundaries, so an isolated
+`C)` fragment or incidental `EST` prose supplies no expiry. ICAO estimates require
+no accompanying native start-end range. An estimated endpoint must agree with the
+structured end to the published minute; conflicting evidence stays unknown. This
+follows [OPADD 4.1 §2.5.1.6](https://www.eurocontrol.int/sites/default/files/2021-07/eurocontrol-guidelines-opadd-ed4-1.pdf)
+for C-field estimates, with the project's existing rule for retaining uncertainty.
+Estimated and unknown ends remain visible for review after the stated end. Only a fixed end
 can remove a notice from the current/upcoming display.
 Permanent notices do not get an invented expiry. Distinguish the effective interval
 from recurring schedules, including overnight/day-boundary cases. Unsupported

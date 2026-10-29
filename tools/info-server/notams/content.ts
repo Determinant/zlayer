@@ -5,7 +5,7 @@ import { notamEndKind } from '../../../src/layers/notams/validity';
 import { parseNotamSchedule, equalNotamSchedules, notamBodySchedule, notamScheduleFits, conflictingNotamSchedules, type NotamSchedule } from '../../../src/layers/notams/schedule';
 import { sharedIcaoSchedule } from '../../../src/layers/notams/notice-evidence';
 import { compareNotamIdentity, notamNumberContent as numberContent } from './identity';
-import { complementaryNotamScopes } from './association-scopes';
+import { compareNotamScopes, type NotamScopeComparison } from './association-scopes';
 import { notamCancellationConflicts } from './cancellation-identity';
 import { equivalentNotamTime, notamContentFields, notamFieldRules } from './structured-fields';
 
@@ -70,6 +70,7 @@ export type NotamContentComparison = {
   outcome: 'equivalent' | 'compatible-evidence' | 'contradictory' | 'unproven';
   fields: ReturnType<typeof contentDifferences>; text: NoticeComparison;
   evidence: ContentEvidence[];
+  association?: NotamScopeComparison;
 };
 
 /** One evaluation supplies both the explanation and the values the merge may
@@ -80,8 +81,14 @@ export function evaluateNotamContent(previous: NotamRecord, next: NotamRecord,
   } {
   const { before, after, proofs } = identity;
   const beforeSchedule = parseNotamSchedule(before.schedule), afterSchedule = parseNotamSchedule(after.schedule);
-  const schedule = equivalentSchedule(before, after, beforeSchedule, afterSchedule);
-  const scopes = complementaryNotamScopes(before, after);
+  let schedule = equivalentSchedule(before, after, beforeSchedule, afterSchedule);
+  const association = compareNotamScopes(before, after);
+  const scopes = association.outcome === 'proved' ? association.scopes : undefined;
+  // Independently proved FIR membership may bind a complete ICAO D-field
+  // witness. Reuse the ordinary schedule proof; scope equality alone cannot
+  // supply hours or relax a conflicting schedule.
+  if (schedule === undefined && scopes) schedule = equivalentSchedule(
+    { ...before, icaoLocations: scopes }, { ...after, icaoLocations: scopes }, beforeSchedule, afterSchedule);
   const cancellationConflicts = notamCancellationConflicts(before, after);
   const text = suppliedText ?? compareNoticeText(before, after);
   const fields = contentDifferences(before, after, text, !!scopes, schedule, cancellationConflicts);
@@ -102,7 +109,9 @@ export function evaluateNotamContent(previous: NotamRecord, next: NotamRecord,
     knownScheduleDifference || text.failure === 'different-content';
   const outcome = cancellationConflicts.length || fields.length ? contradictory ? 'contradictory' : 'unproven'
     : missing || scopes ? 'compatible-evidence' : 'equivalent';
-  return { comparison: { outcome, fields, text, evidence }, schedule, scopes };
+  const explainAssociation = scopes || before.icaoLocations.length > 0 && after.icaoLocations.length > 0 &&
+    !sameLocations(before.icaoLocations, after.icaoLocations);
+  return { comparison: { outcome, fields, text, evidence, ...(explainAssociation ? { association } : {}) }, schedule, scopes };
 }
 
 export function compareNotamContent(previous: NotamRecord, next: NotamRecord): NotamContentComparison {
