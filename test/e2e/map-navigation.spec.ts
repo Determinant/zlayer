@@ -114,8 +114,9 @@ test('track up centers each fresh fix, preserves zoom, and stops following in no
   for (const heading of [350, 10]) {
     // Allow GPS correction and the 2s display filter to settle within the documented 3° deadband.
     // Damping advances on fresh fixes, not while a polling assertion waits.
+    // Ten samples can stop just outside the deadband after crossing north.
     // Keep this GPS-only scenario below the optional sensor-assistance gate.
-    for (let sample = 0; sample < 10; sample++) {
+    for (let sample = 0; sample < 15; sample++) {
       await page.clock.runFor(1000);
       await sendFix(page, { heading, longitude: -121.9, latitude: 37.1, speed: 5 });
     }

@@ -87,6 +87,11 @@ latch and frame settling.
 style-ready/error callbacks.
 Terminal map-source errors request a final repaint so an offline tile failure
 can settle the idle signal even when the source finished after the last frame.
+Supported basemap requests settle immediately on a known-offline cache miss and
+have an eight-second network/body deadline otherwise. Saved-chart readiness uses
+the installed controlling worker independently of pending app updates or shell
+repair, while retaining the reset barrier. See
+[offline launch](../features/offline-storage.md#shell-and-source-failures).
 
 `test/e2e/startup.spec.ts` exercises indeterminate workspace discovery, named plugin
 progress, disabled plugins, delayed map code/data/tiles, main-thread startup work,

@@ -30,7 +30,11 @@ export async function basemapResponse(request: Request, keepAlive: (work: Promis
     request.signal, discardResponseBody).catch(() => { request.signal.throwIfAborted(); return undefined; });
   if (cached && fresh(cached, Date.now())) return cached;
   discardResponseBody(cached);
-  const response = await fetch(request);
+  if (globalThis.navigator?.onLine === false) return Response.error();
+  // A connected Wi-Fi interface can still have no Internet access. Bound both
+  // the request and its body so background imagery cannot hold map startup.
+  const signal = AbortSignal.any([request.signal, AbortSignal.timeout(8_000)]);
+  const response = await fetch(request, { signal });
   // Opaque responses hide their size and may carry substantial quota padding.
   // Only readable, bounded bodies belong in this temporary cache.
   if (response.status === 200 && response.body && globalThis.navigator?.locks && pendingWrites < MAX_PENDING_WRITES) {

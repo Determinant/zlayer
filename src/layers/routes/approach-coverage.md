@@ -287,8 +287,9 @@ maneuver exceptions). Incomplete entries without a classified cause are flagged.
 Smaller datum errors, hold semantics, source omissions and operational restrictions
 can escape these checks; holds are excluded from ordinary crossing screening.
 
-Browser regressions exercise preview, save and reload at 320/1280 px, including
-rejected helicopter collisions and explicit parallel-runway selection. Dated
+Browser regressions exercise each refinement's preview, save and reload once at
+320 px. Picker-specific checks retain 320/1280 px coverage for rejected helicopter
+collisions and explicit parallel-runway selection. Dated
 audit evidence does not replace the current
 [full verification gate](../../../docs/development/local-development.md#verification). Run per-cycle
 inventories and inspect new or changed failures against source plates.

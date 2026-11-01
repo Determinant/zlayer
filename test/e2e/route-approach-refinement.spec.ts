@@ -3,7 +3,9 @@ import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import catalog from '../fixtures/route-approaches.json' with { type: 'json' };
 import { refinementTerminal, refinementPublishedCatalog } from '../fixtures/route-approach-refinement';
 
-for (const width of [320, 1280]) for (const [id, title, entry] of [
+// Exercise each geometry regression once. The picker-specific cases below own
+// narrow/desktop layout coverage; repeating this corpus adds no layout assertion.
+for (const [id, title, entry] of [
   ['KAWO:L34', 'LOC RWY 34', 'AW'], ['KGLH:I18L', 'ILS OR LOC RWY 18L', 'GLH'],
   ['KDEN:I16L', 'ILS OR LOC RWY 16L', 'Vectors to final (VTF)'],
   ['PABT:S02', 'VOR RWY 2', 'JEVUM'],
@@ -17,8 +19,8 @@ for (const width of [320, 1280]) for (const [id, title, entry] of [
   ['KSCH:I04', 'ILS OR LOC RWY 04', 'Vectors to final (VTF)'],
   ['KLNK:I18-Y', 'ILS Y OR LOC Y RWY 18', 'LNK'],
   ['KPBF:I18', 'ILS OR LOC RWY 18', 'PBF'],
-]) test(`${id} retains final and missed hold through preview, save and reload at ${width}px`, async ({ page }, testInfo) => {
-  await page.setViewportSize({ width, height: 900 });
+]) test(`${id} retains final and missed hold through preview, save and reload`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 900 });
   const terminal = refinementTerminal(id!), p = terminal.approaches!.procedures[0]!, template = catalog.airports[0]!;
   await page.route('**/route-approaches.json', route => route.fulfill({ json: refinementPublishedCatalog(id!, title!) ?? { ...catalog, airports: [
     { ...template, id: p.airport, faaId: p.airport.slice(1), icaoId: p.airport, procedures: [
@@ -80,7 +82,7 @@ for (const width of [320, 1280]) for (const [id, title, entry] of [
   });
   await expect.poll(() => page.evaluate(() => (window as unknown as { approachMapAudit: MapLibreMap }).approachMapAudit
     .queryRenderedFeatures().some(f => f.properties.routeKind === 'approach-hold'))).toBe(true);
-  await page.getByLabel('Approach map', { exact: true }).screenshot({ path: testInfo.outputPath(`${p.airport}-${width}.png`) });
+  await page.getByLabel('Approach map', { exact: true }).screenshot({ path: testInfo.outputPath(`${p.airport}.png`) });
 });
 
 for (const width of [320, 1280]) test(`helicopter title collisions retain the plate fallback at ${width}px`, async ({ page }) => {

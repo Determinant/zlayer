@@ -170,6 +170,13 @@ affected graphics suites for renderer changes. Keep smoke coverage small and
 representative; advancing a virtual sensor clock still executes every callback
 and can drive substantial rendering work.
 
+Keep data regressions in focused Node tests and exercise their browser integration
+once per distinct behavior. Add viewport, density or input combinations only when
+they test a corresponding layout or interaction difference. A fixed-density case
+must use `@explicit-density` so the retina project does not repeat it unchanged.
+When replacing a regression test, remove the superseded assertion or case rather
+than retaining both by default; preserve unique failure and recovery paths.
+
 ```bash
 npx playwright install --with-deps chromium
 npm run verify:standard
@@ -218,6 +225,9 @@ maps to an image account without a writable home directory.
 Replace `verify:standard` with `verify:full` for an exhaustive container run.
 Run one verification job at a time; overlapping suites compete for CPU, especially
 with software-rendered WebGL, and native runs share a mutable fixture server.
+On slower hosts, `ZLAYER_TEST_STARTUP_TIMEOUT_MS` can extend the 240-second fixture
+preparation deadline for `test:browser:session` and `verify:full`. It does not change
+browser-test timeouts or skip native weather preparation.
 
 The container's fixture port is isolated from host development servers. For a
 native run with an occupied fixture port, set `ZLAYER_TEST_PORT` to a free port.
@@ -336,6 +346,12 @@ npm run test:browser:session -- test/e2e/responsive.spec.ts --grep 'recommendati
   --next --config=playwright.graphics.config.ts --project=webkit \
   test/e2e/plate-fullscreen.spec.ts --grep 'fullscreen keeps the loaded plate'
 ```
+
+For focused advisory or synthetic-grid UI tests, set `ZLAYER_TEST_WEATHER_WARMUP=0`
+to omit unrelated native forecast, prog and radar preparation. The real weather
+service and per-test fixtures remain enabled. Do not use this option for native
+weather, prog, radar or full-suite verification. `ZLAYER_TEST_SKIP_WEATHER=1`
+instead disables all weather endpoints and is only suitable for non-weather tests.
 
 On Linux without `DISPLAY`, pass `--headed` in an affected group to have the runner
 use Xvfb for that group. The standard single-suite commands still prepare their own

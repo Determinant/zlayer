@@ -52,7 +52,7 @@ export function createBrowserDownloads(downloadPdf: (file: OfflineFile) => Promi
       if (plan.references.some(resource => resource.id === 'unverified')) throw new Error(
         'This older selection needs updated reference metadata. Reload feeds and use Update to latest; saved files are kept.',
       );
-      if (!await preparePwa()) throw new Error('Offline service worker unavailable. Reload online and retry.');
+      if (!await preparePwa()) throw new Error('Offline setup could not finish. Reconnect and reopen ZLayer, then retry.');
       signal.throwIfAborted();
       plan = await prepareRegionTerrain(plan, signal);
       plan = await prepareRegionGlide(plan, signal);

@@ -31,6 +31,7 @@ const resetHolds = new Set<() => void>();
 const pendingWork = new Set<Promise<unknown>>();
 const resetScreens = new Set<string>();
 let preparingPwa: Promise<void> | undefined;
+let repairingShell: Promise<void> | undefined;
 let archiveNotifications = Promise.resolve();
 const readyArchives = new Set<string>();
 
@@ -120,7 +121,7 @@ worker.addEventListener('fetch', (event) => {
   }
 
   if (!development && sameOrigin && shellDefinition.assets.includes(url.pathname)) {
-    respond(cacheFirst(new Request(`${url.origin}${url.pathname}`), shellCache));
+    respond(shellAssetResponse(new Request(`${url.origin}${url.pathname}`)));
     return;
   }
 
@@ -160,9 +161,15 @@ worker.addEventListener('message', (event) => {
   if (isRecord(event.data) && event.data.type === 'prepare-pwa' && event.source && 'url' in event.source &&
     new URL(event.source.url).origin === worker.location.origin &&
     new URL(event.source.url).searchParams.get('reset') !== '1') {
-    preparingPwa ??= trackWork(prepareApplication().finally(() => { preparingPwa = undefined; }));
-    event.waitUntil(preparingPwa.then(
-      () => event.ports[0]?.postMessage({ ok: true }),
+    // Saved-chart reads can use this worker while a shell repair/update is
+    // unavailable. A reset still requires the full preparation handshake.
+    const chartsOnly = event.data.requireShell === false && !resetting;
+    if (!chartsOnly) preparingPwa ??= trackWork(prepareApplication(work => event.waitUntil(work))
+      .finally(() => { preparingPwa = undefined; }));
+    const preparation = chartsOnly ? trackWork(worker.clients.claim()) : preparingPwa!;
+    event.waitUntil(preparation.then(
+      () => event.ports[0]?.postMessage(resetting
+        ? { error: 'Offline worker could not prepare storage' } : { ok: true }),
       () => event.ports[0]?.postMessage({ error: 'Offline worker could not prepare storage' }),
     ));
     return;
@@ -197,8 +204,14 @@ worker.addEventListener('message', (event) => {
   }
   if (isRecord(event.data) && event.data.type === 'app-release') {
     // Preserve the opaque ID so already-open older clients can still offer this update.
-    event.ports[0]?.postMessage({ release: shellDefinition.version, displayVersion: shellDefinition.displayVersion,
-      resetAdvisory: shellDefinition.resetAdvisory ?? null });
+    // A retained page must not advertise an active shell whose completion marker was lost.
+    event.waitUntil((async () => {
+      const ready = development || await cachedApplicationPage();
+      event.ports[0]?.postMessage(ready && !resetting
+        ? { release: shellDefinition.version, displayVersion: shellDefinition.displayVersion,
+          resetAdvisory: shellDefinition.resetAdvisory ?? null }
+        : { error: 'Application shell is not ready' });
+    })());
     return;
   }
   if (isRecord(event.data) && event.data.type === 'forget-chart-memory' && typeof event.data.url === 'string') {
@@ -257,14 +270,19 @@ async function prepareReset(navigateWindows: boolean): Promise<void> {
   chartArchives = new WholeFileCache();
 }
 
-async function prepareApplication(): Promise<void> {
+async function prepareApplication(keepAlive: (work: Promise<void>) => void): Promise<void> {
   const checkReset = () => {
     if (resetting && !resetComplete) throw new Error('Local data reset is in progress');
   };
   checkReset();
   // A revived registration need not install again, and worker memory can be lost.
   if (!development && !await cachedApplicationPage()) {
-    await cacheApplicationShell();
+    // Older pages use full preparation for chart reads too. A complete retained
+    // shell satisfies offline readiness, but never authorizes reset recovery.
+    const retained = !resetting && await retainedApplicationPage();
+    repairingShell ??= trackWork(cacheApplicationShell().finally(() => { repairingShell = undefined; }));
+    if (retained) keepAlive(repairingShell.catch(() => {}));
+    else await repairingShell;
   }
   checkReset(); // A reset may have started while the shell was being rebuilt.
   resetting = false;
@@ -287,25 +305,41 @@ async function cacheApplicationShell(): Promise<void> {
   await cache.put(shellPageUrl, page);
 }
 
-async function matchesApplicationRelease(page: Response): Promise<boolean> {
-  return page.ok && (await page.clone().text()).includes(`<meta name="zlayer-release" content="${shellDefinition.version}"`);
+async function matchesApplicationRelease(page: Response, version = shellDefinition.version): Promise<boolean> {
+  return page.ok && (await page.clone().text()).includes(`<meta name="zlayer-release" content="${version}"`);
 }
 
-async function cachedApplicationPage(): Promise<Response | undefined> {
+async function cachedApplicationPage(cacheName = shellCache, version = shellDefinition.version): Promise<Response | undefined> {
   try {
-    const page = await caches.match(shellPageUrl, { cacheName: shellCache });
-    return page && await matchesApplicationRelease(page) ? page : undefined;
+    const page = await caches.match(shellPageUrl, { cacheName });
+    return page && await matchesApplicationRelease(page, version) ? page : undefined;
   } catch { return undefined; }
 }
 
 async function applicationPageResponse(request: Request): Promise<Response> {
   // Only a complete shell download may cache the page: navigation alone cannot
   // establish offline readiness or place a newer release in this worker's cache.
-  return (await cachedApplicationPage()) ?? fetch(request);
+  return (await cachedApplicationPage()) ?? (await retainedApplicationPage()) ?? fetch(request);
+}
+
+async function retainedApplicationPage(): Promise<Response | undefined> {
+  // A retained release can still open saved data when the active shell's
+  // page is lost. Only a page committed under its own release is a fallback;
+  // partial installations and mismatched pages never establish readiness.
+  const names = await caches.keys().catch(() => []);
+  for (const name of names.reverse()) {
+    if (name === shellCache || !name.startsWith(SHELL_CACHE_PREFIX)) continue;
+    const version = name.slice(SHELL_CACHE_PREFIX.length);
+    if (!/^[a-f0-9]{16}$/.test(version)) continue;
+    const page = await cachedApplicationPage(name, version);
+    if (page) return page;
+  }
+  return undefined;
 }
 
 async function shellAssetResponse(request: Request): Promise<Response> {
-  return (await caches.match(request).catch(() => undefined)) ?? cacheFirst(request, shellCache);
+  return (await caches.match(request, { cacheName: shellCache }).catch(() => undefined)) ??
+    (await caches.match(request).catch(() => undefined)) ?? cacheFirst(request, shellCache);
 }
 
 async function cacheFirst(request: Request, cacheName: string): Promise<Response> {

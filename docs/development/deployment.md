@@ -271,7 +271,7 @@ terrain, GPS rendering and plate cases also run in Firefox and WebKit, including
 
 These remain release gates:
 
-- Installed iOS/Android airplane-mode cold launch, large-book rendering,
+- Installed Windows/iOS/Android cold launch without Internet access, large-book rendering,
   interrupted downloads, process termination and low-storage recovery:
   [offline checks](../features/offline-storage.md#release-checks). Repeat the KVGT iPhone
   download that crashed at approximately 177 MiB, including rendering and offline

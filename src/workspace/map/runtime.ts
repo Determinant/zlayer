@@ -13,7 +13,7 @@ import { occupiedMapRegions, observeOccupiedMapRegions } from './occupied-region
 import { CHART_LAYER_ANCHOR, PLATE_LAYER_ANCHOR, TERRAIN_LAYER_ANCHOR, WEATHER_LAYER_ANCHOR, ROUTE_LINE_ANCHOR, MapLayerHost } from '../../core/map/layer';
 import { configureTouchRotation } from '../../core/map/touch-rotation';
 import { DEFAULT_MAP_VIEW, mapStyle, type MapView } from './style';
-import { mapErrorMessage, MapTileErrors } from './errors';
+import { mapErrorCode, mapErrorMessage, MapTileErrors } from './errors';
 import { createViewReporter } from './view-reporter';
 import { MapNavigationControl } from './navigation-control';
 import { LayerScope } from '../../core/layers/scope';
@@ -100,8 +100,8 @@ export class MapRuntime {
       this.#map.on('error', (event) => {
         const message = mapErrorMessage(event);
         if (message) {
-          const resource = tileErrors.failed(event, message);
-          this.#onError(message, resourceErrorCode(event.error), resource);
+          const resource = tileErrors.failed(event);
+          this.#onError(message, mapErrorCode(event.error), resource);
         }
         // A terminal tile error can settle a source after its last render. Ask
         // for the final frame/idle event so offline startup cannot stay "busy".

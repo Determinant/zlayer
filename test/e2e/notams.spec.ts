@@ -488,6 +488,9 @@ for (const touch of [false, true]) test.describe(touch ? 'touch TFR inspection' 
   });
 });
 test('TFR restoration, refresh and detail expiry preserve colors until the schedule changes', async ({ page }) => {
+  // Stop the beforeEach page before counting this restoration's requests.
+  // Its pending debounce can otherwise reach the new route during navigation.
+  await page.goto('about:blank');
   const now = Date.now();
   await page.clock.install({ time: now });
   let requests = 0;

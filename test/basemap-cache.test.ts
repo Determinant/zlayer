@@ -19,6 +19,38 @@ function gate() {
   return { promise, resolve };
 }
 
+test('known-offline basemaps reuse fresh tiles and settle missing imagery without a network request', async t => {
+  cacheFixture(t, BASEMAP_CACHE);
+  const original = Object.getOwnPropertyDescriptor(navigator, 'onLine');
+  t.after(() => original ? Object.defineProperty(navigator, 'onLine', original) : Reflect.deleteProperty(navigator, 'onLine'));
+  const fetch = t.mock.method(globalThis, 'fetch', async () => new Response('saved tile'));
+  await browse();
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+  assert.equal(await browse(), 'saved tile');
+  assert.equal((await basemapResponse(new Request(`${url}?missing`), () => {})).type, 'error');
+  assert.equal(fetch.mock.callCount(), 1);
+});
+
+test('unreachable imagery has a bounded deadline even while the browser reports online', async t => {
+  cacheFixture(t, BASEMAP_CACHE);
+  const deadline = new AbortController();
+  t.mock.method(AbortSignal, 'timeout', (milliseconds: number) => {
+    if (milliseconds === 8_000) return deadline.signal;
+    return new AbortController().signal;
+  });
+  const started = gate();
+  t.mock.method(globalThis, 'fetch', async (_request: RequestInfo | URL, options?: RequestInit) => {
+    const signal = options!.signal!;
+    started.resolve();
+    return new Promise<Response>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+  });
+  const pending = basemapResponse(new Request(url), () => {});
+  const rejected = assert.rejects(pending, { name: 'TimeoutError' });
+  await started.promise;
+  deadline.abort(new DOMException('Imagery timed out', 'TimeoutError'));
+  await rejected;
+});
+
 test('viewed basemaps are temporary, expire after a day and reject future cache timestamps', async t => {
   t.mock.timers.enable({ apis: ['Date'], now: 100_000 });
   const { stored } = cacheFixture(t, BASEMAP_CACHE);

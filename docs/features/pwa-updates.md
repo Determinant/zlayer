@@ -26,7 +26,9 @@ Reading the document's ID separately from the worker's ID distinguishes the
 running page from the newly installed shell. The worker's `app-release` reply
 keeps the original `release` field and adds `displayVersion`, allowing older
 installed pages to continue detecting updates. New pages also accept replies
-from older workers that report only the ID.
+from older workers that report only the ID. Release inspection revalidates the
+cached completion marker, so a retained fallback page cannot offer a missing or
+mismatched active shell as a ready offline update.
 
 Update checks run at startup, when the app becomes visible or focused, when
 connectivity returns, and every five minutes while visible and online. Foreground
@@ -78,6 +80,10 @@ the user explicitly clears local app data.
 
 Once a release is ready, its update button also works offline. An app
 launched offline still observes its existing registration and checks on reconnect.
+An existing controlling worker can acknowledge saved-chart reads while a new
+release is installing or the current shell needs repair. The
+[offline launch contract](offline-storage.md#shell-and-source-failures) defines
+readiness, reset safeguards, retained-shell fallback and missing-code limits.
 Keep `/sw.js` served with `Cache-Control: no-store`, as in the
 [Caddy hosting configuration](../../tools/hosting/Caddyfile); apply the same
 policy with other web servers.

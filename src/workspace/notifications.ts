@@ -33,8 +33,8 @@ export function workspaceNotifications({ connectionFailures, pluginTitle, retryC
   if (workspaceCycleNotice) notices.push({ id: 'cycle', title: 'FAA data cycle', message: workspaceCycleNotice });
   if (!online) notices.push({ id: 'offline', title: 'Offline', tone: 'offline',
     message: 'Saved content remains available. Uncached areas are unavailable; weather may be stale.' });
-  if (chartsSelected && chartCacheState === 'unavailable') notices.push({ id: 'chart-cache', title: 'Charts are disabled', tone: 'error',
-    message: 'A controlling service worker is required for whole-file MBTiles caching.',
+  if (chartsSelected && chartCacheState === 'unavailable') notices.push({ id: 'chart-cache', title: 'Charts could not open', tone: 'error',
+    message: 'Retry to open your saved charts. If this continues, close and reopen the app; reconnect if the app needs to finish setup.',
     action: { label: 'Retry chart cache', run: retryChartCache } });
   if (feedIssues?.length) notices.push({ id: 'feeds', title: 'Feed issues',
     message: feedIssues.map(issue => `${issue.product}: ${issue.message}`).join(' '),

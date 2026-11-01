@@ -11,7 +11,7 @@ const loader = registerHooks({ resolve(specifier, context, next) {
     export const useCallback = (callback, dependencies) => globalThis.testHooks.useMemo(() => callback, dependencies);
   `) };
   if (specifier === '../../pwa') return { shortCircuit: true,
-    url: moduleUrl('export const preparePwa = () => globalThis.prepareChartCache();') };
+    url: moduleUrl('export const prepareChartCache = () => globalThis.prepareChartCache();') };
   return next(specifier, context);
 } });
 const { useChartCache } = await import('../src/layers/charts/use-cache');
@@ -24,7 +24,8 @@ function setup(t: test.TestContext, prepare: () => Promise<boolean>) {
   t.after(() => hooks.unmount());
   const serviceWorker = new EventTarget();
   const globals = { testHooks: hooks, prepareChartCache: prepare,
-    navigator: { serviceWorker }, window: new EventTarget() };
+    navigator: { serviceWorker }, window: new EventTarget(),
+    document: Object.assign(new EventTarget(), { visibilityState: 'visible' }) };
   for (const [name, value] of Object.entries(globals)) {
     const previous = Object.getOwnPropertyDescriptor(globalThis, name);
     Object.defineProperty(globalThis, name, { configurable: true, value });
@@ -112,14 +113,21 @@ test('reconnection retries immediately and cancels the previous retry timer', as
   assert.equal(calls, 2);
 });
 
-for (const event of ['online', 'controllerchange']) {
+for (const event of ['online', 'controllerchange', 'visibilitychange']) {
   test(`${event} keeps ready charts visible while rechecking cache readiness`, async t => {
     let calls = 0, complete!: (value: boolean) => void;
     const { render, serviceWorker } = setup(t, () => ++calls === 1 ? Promise.resolve(true)
       : new Promise(resolve => { complete = resolve; }));
     render(); await tick();
     assert.equal(render().state, 'ready');
-    (event === 'online' ? window : serviceWorker).dispatchEvent(new Event(event));
+    if (event === 'visibilitychange') {
+      Object.assign(document, { visibilityState: 'hidden' });
+      document.dispatchEvent(new Event(event));
+      render(); await tick();
+      assert.equal(calls, 1, 'suspension must not start another readiness check');
+      Object.assign(document, { visibilityState: 'visible' });
+    }
+    (event === 'online' ? window : event === 'visibilitychange' ? document : serviceWorker).dispatchEvent(new Event(event));
     render();
     assert.equal(render().state, 'ready', 'background checks must not hide working charts');
     assert.equal(calls, 2);

@@ -17,6 +17,10 @@ function stop(child, signal = 'SIGTERM') {
 /** Own one fresh production fixture server; suites remain sequential and isolated by reset. */
 export async function runBrowserSession(suites) {
   if (!suites.length || suites.some(suite => !suite.args.length)) throw new Error('Provide at least one Playwright argument group.');
+  const startupTimeout = Number(process.env.ZLAYER_TEST_STARTUP_TIMEOUT_MS ?? 240_000);
+  if (!Number.isSafeInteger(startupTimeout) || startupTimeout <= 0 || startupTimeout > 2_147_483_647) {
+    throw new Error('Invalid fixture startup timeout.');
+  }
   const port = process.env.ZLAYER_TEST_PORT ?? '4197';
   const baseURL = `http://127.0.0.1:${port}`;
   const server = fork(resolve(root, 'test/e2e/server.mjs'), [], {
@@ -36,7 +40,7 @@ export async function runBrowserSession(suites) {
           if (message !== 'ready') throw new Error('Unexpected fixture-server readiness message.');
         }),
         serverExit.then(() => { throw new Error('Fixture server exited before readiness.'); }),
-        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Fixture preparation exceeded 240 seconds.')), 240_000); }),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`Fixture preparation exceeded ${startupTimeout / 1000} seconds.`)), startupTimeout); }),
       ]);
     } finally { clearTimeout(timer); }
     console.log(`\nFresh browser fixture ready at ${baseURL}; reusing this build for ${suites.length} suite(s).`);

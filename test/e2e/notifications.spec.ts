@@ -84,12 +84,13 @@ test.describe('basemap recovery', () => {
     await page.goto('/');
     await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
     const bubble = page.getByRole('button', { name: 'Dismiss Map layer unavailable', exact: true });
-    await expect(bubble).toContainText('zlayer-basemap');
+    await expect(bubble).toContainText('Background imagery is unavailable.');
+    await expect(bubble).not.toContainText(/zlayer-basemap|AJAXError|https?:\/\//);
     await bubble.click();
     await page.getByLabel('Settings and offline downloads').click();
     await page.getByRole('tab', { name: 'Notifications', exact: true }).click();
     const panel = page.getByRole('tabpanel', { name: 'Notifications', exact: true });
-    await expect(panel).toContainText('zlayer-basemap');
+    await expect(panel).toContainText('Background imagery is unavailable.');
     await page.getByLabel('Close settings').click();
 
     // Leave and revisit the failed tile so MapLibre requests it again.

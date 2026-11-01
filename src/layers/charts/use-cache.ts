@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import type { ChartRecord } from '@zlayer/contracts';
 
-import { preparePwa } from '../../pwa';
+import { prepareChartCache } from '../../pwa';
 import { isResourceErrorCode, type ResourceErrorCode } from '../../core/data/errors';
 
 export type ChartCacheState = 'preparing' | 'ready' | 'unavailable';
@@ -26,7 +26,7 @@ export function useChartCache(charts: readonly ChartRecord[] | undefined,
     // Reconnecting or adopting a new worker must not hide already working charts.
     setState(current => current === 'ready' ? current : 'preparing');
     const prepare = async () => {
-      const available = await preparePwa();
+      const available = await prepareChartCache();
       if (cancelled) return;
       if (available) { setState('ready'); return; }
       const delay = PREPARATION_RETRY_DELAYS[failures++];
@@ -38,12 +38,15 @@ export function useChartCache(charts: readonly ChartRecord[] | undefined,
 
     navigator.serviceWorker?.addEventListener('controllerchange', retry);
     window.addEventListener('online', retry);
+    const resume = () => { if (document.visibilityState === 'visible') retry(); };
+    document.addEventListener('visibilitychange', resume);
     void prepare();
     return () => {
       cancelled = true;
       clearTimeout(timer);
       navigator.serviceWorker?.removeEventListener('controllerchange', retry);
       window.removeEventListener('online', retry);
+      document.removeEventListener('visibilitychange', resume);
     };
   }, [active, attempt, retry]);
 

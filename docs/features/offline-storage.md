@@ -370,6 +370,27 @@ release and the installed release, then remove obsolete shells without breaking
 pending lazy imports.
 Chart/PDF storage namespaces do not change with shell releases.
 
+Startup first uses the browser's existing service-worker registration, without
+waiting for a network registration or an in-progress update. Reading saved charts
+requires an acknowledgement from the worker still controlling the page, independently
+of app-shell repair. Regional saves and **Verify saved files** still require a
+validated complete application shell because either can repair and recommit a
+region. Readiness is checked again on resume rather than treating a previous
+page-session success as permanent.
+
+If the active shell's page is unavailable, navigation can use another retained
+shell whose page matches its own release. Incomplete installations and mismatched
+pages are never fallbacks. That complete retained shell also satisfies full app
+preparation, including older clients' unversioned readiness requests used for both
+chart reads and downloads. Repair of the active shell proceeds in the background;
+concurrent requests share the repair and keep it in the worker event lifetime.
+Readiness does not claim that the active shell has been repaired: release inspection
+and update activation still require that release's own completion marker.
+Neither readiness path bypasses an active local-data reset. After a completed reset,
+the current shell must be rebuilt before enabling storage again, even if a retained
+shell survives. If no complete shell remains, an online visit is required; saved
+chart bytes alone cannot reconstruct application code.
+
 The last validated catalog appears before network revalidation. Cached products remain
 usable when another feed, an uncached chart, or a weather request fails. Warnings are
 non-blocking. Offline still needs a successful first online installation and saved
@@ -419,6 +440,12 @@ observation times and stale/unavailable labels. Downloads
 show their FAA cycle; saved means retained, not current or suitable for navigation.
 Map-label identifier glyphs are bundled in the application shell. See
 [deployment readiness](../development/deployment.md) for the required data-hosting setup.
+
+Known-offline imagery misses settle without a network request. Other requests to
+the supported basemap providers have an eight-second deadline, including response
+consumption, so an unreachable connection cannot indefinitely delay map startup.
+Imagery failures use a plain-language notice; they do not expose provider URLs or
+renderer source IDs. Cached imagery retains its existing one-day expiry.
 
 ### Browsing and saved editions
 
@@ -678,8 +705,9 @@ for clients finishing an update.
    retry online and verify the new book after another offline restart.
 5. Install a new shell release with an older tab open. Both tabs must retain lazy
    viewer access. Check desktop and narrow-screen layout and keyboard dialog dismissal.
-6. Repeat airplane-mode cold launch on installed iPhone/iPad and Android apps, including
-   a large mainland book, process termination, and low-storage handling. Do not treat a
+6. Repeat cold launch without Internet access on installed Windows, iPhone/iPad and
+   Android apps. Include airplane mode, Wi-Fi without Internet access, a large
+   mainland book, process termination, and low-storage handling. Do not treat a
    desktop headless pass as device certification. Repeat the reported KVGT download
    past 177 MiB, render the chart, and reopen it offline; record device/iOS version
    and overlapping map, terrain, plate and AHRS activity.

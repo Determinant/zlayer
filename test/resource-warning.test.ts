@@ -9,7 +9,7 @@ const react = moduleUrl(`export * from ${JSON.stringify(hookModule)};
   export const useCallback = (callback, dependencies) => globalThis.testHooks.useMemo(() => callback, dependencies);`);
 const loader = registerHooks({ resolve(specifier, context, next) {
   if (specifier === 'react') return { url: react, shortCircuit: true };
-  if (specifier === '../../pwa') return { url: moduleUrl('export const preparePwa = async () => true;'), shortCircuit: true };
+  if (specifier === '../../pwa') return { url: moduleUrl('export const prepareChartCache = async () => true;'), shortCircuit: true };
   return next(specifier, context);
 } });
 const { useCallback } = await import('react');
@@ -22,14 +22,17 @@ function setup(t: test.TestContext, online = true) {
   const hooks = new Hooks();
   Object.assign(globalThis, { testHooks: hooks });
   const originalWindow = globalThis.window;
+  const originalDocument = globalThis.document;
   const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
   const serviceWorker = new EventTarget();
   const connection = { onLine: online, serviceWorker };
   globalThis.window = new EventTarget() as Window & typeof globalThis;
+  globalThis.document = Object.assign(new EventTarget(), { visibilityState: 'visible' }) as Document;
   Object.defineProperty(globalThis, 'navigator', { configurable: true, value: connection });
   t.after(() => {
     hooks.unmount();
     globalThis.window = originalWindow;
+    globalThis.document = originalDocument;
     if (originalNavigator) Object.defineProperty(globalThis, 'navigator', originalNavigator);
     else Reflect.deleteProperty(globalThis, 'navigator');
   });

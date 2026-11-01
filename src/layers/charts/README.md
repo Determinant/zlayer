@@ -48,6 +48,13 @@ Transient chart-cache startup failures retry automatically after 1, 3, and 10 se
 Charts appear on the same page once preparation succeeds; catalog refreshes do not
 restart cache preparation. Persistent failures expose **Retry chart cache**, and
 reconnection or a new controlling worker starts a fresh attempt.
+Returning to the foreground also rechecks worker readiness and retries failed
+chart families, including while offline. Healthy families retain their sources.
+An installed controlling worker can serve saved charts while an update is pending
+or app-shell repair fails; explicit regional downloads still require full shell
+preparation. Both paths preserve the local-reset barrier. The
+[offline launch contract](../../../docs/features/offline-storage.md#shell-and-source-failures)
+describes shell fallback and the requirement for retained application code.
 
 Transient map-tile warnings use the workspace's shared tile recovery lifecycle for
 VFR sectionals, IFR low/high and chart overlays, just like other map sources. The
@@ -64,6 +71,20 @@ rendering errors. See [Notifications](../../../docs/features/shared-ui.md#notifi
 The [rendering pipeline benchmark](benchmark.md) measures built-app cold/warm
 loads, camera movement, package reuse and saved-edition composition. It includes
 pixel/locality guards and records measurement limits separately from timings.
+
+`test/e2e/offline-restart.spec.ts` closes and relaunches the browser with the same
+disk profile after disconnecting the fixture origin. It checks saved-region
+verification, chart pixels without basemap imagery, and range reads from a large
+file-backed archive. Desktop and touch cases cover both known-offline status and
+an unreachable origin while connectivity is still reported. A retained-shell case
+also removes the current cached page and sends the older chart hook's unversioned
+readiness message during startup. It verifies chart rendering and regional
+verification without advertising the missing active shell as a ready update.
+The fixture exercises that legacy protocol with the current UI, not a complete
+historical application build. Chromium runs through
+the ordinary browser suite; the graphics configuration also includes WebKit.
+These engines do not substitute for installed Windows, Android and iOS device
+checks, storage pressure, or operating-system termination during a download.
 
 - Preserve the [whole-file I/O invariant](../../../docs/architecture/overview.md#chart-io-invariant).
   Rendering a tile must not become an independent origin fetch for a tile or SQLite page.

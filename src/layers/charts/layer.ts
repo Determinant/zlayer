@@ -51,6 +51,9 @@ export function createChartLayer(catalog: CatalogReadSource, definition: ChartFa
       scope.add(observeOfflineInventory(retry));
       scope.add(() => window.removeEventListener('online', retry));
       window.addEventListener('online', retry);
+      const resume = () => { if (document.visibilityState === 'visible') retry(); };
+      document.addEventListener('visibilitychange', resume);
+      scope.add(() => document.removeEventListener('visibilitychange', resume));
     },
     update(value) {
       selection = value.selection;

@@ -3,7 +3,13 @@ import { externalErrorCode, resourceErrorCode } from '../../core/data/errors';
 
 export function mapErrorMessage(event: { error: { name?: string; message: string }; sourceId?: string }): string | undefined {
   if (event.error.name === 'AbortError') return undefined;
+  if (event.sourceId === 'zlayer-basemap') return 'Background imagery is unavailable. You can still use saved charts and navigation.';
   return `${event.sourceId ?? 'Map'}: ${event.error.message}`;
+}
+
+/** Classify the original error before replacing provider details with UI copy. */
+export function mapErrorCode(error: { message: string }) {
+  return resourceErrorCode(error) ?? externalErrorCode(error.message);
 }
 
 type RequestTile = Pick<Tile, 'state' | 'uses'>;
@@ -15,8 +21,8 @@ type SourceErrors = { tiles: Set<WeakRef<RequestTile>>; recovered: boolean };
 export class MapTileErrors {
   readonly #sources = new Map<string, SourceErrors>();
 
-  failed(event: TileEvent & { error: unknown }, message: string): string | undefined {
-    const code = resourceErrorCode(event.error) ?? externalErrorCode(message);
+  failed(event: TileEvent & { error: { message: string } }): string | undefined {
+    const code = mapErrorCode(event.error);
     if (!event.sourceId || code !== 'request' && code !== 'http') return;
     let source = this.#sources.get(event.sourceId);
     if (!source) this.#sources.set(event.sourceId, source = { tiles: new Set(), recovered: false });

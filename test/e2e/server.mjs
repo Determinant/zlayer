@@ -27,6 +27,7 @@ process.env.VITE_ZLAYERS_TERRAIN_TILE_URL = `http://127.0.0.1:${port}/terrain/{z
 const benchmark = process.env.ZLAYER_RENDER_BENCHMARK === '1';
 // PWA/catalog checks do not need native weather decoding. Full sessions keep it enabled.
 const skipWeather = benchmark || process.env.ZLAYER_TEST_SKIP_WEATHER === '1';
+const warmWeather = process.env.ZLAYER_TEST_WEATHER_WARMUP !== '0';
 const benchmarkPlugins = benchmark ? [(await import('../../tools/rendering-benchmark-plugin.ts')).renderingBenchmark()] : [];
 await build({ plugins: benchmarkPlugins, build: { outDir: directory, rolldownOptions: {
   preserveEntrySignatures: 'exports-only',
@@ -94,18 +95,20 @@ async function resetWeather() {
   await rm(cacheDirectory, { recursive: true, force: true });
   if (weatherSeeded) await cp(seedDirectory, cacheDirectory, { recursive: true });
   weather = await fixtureWeather(cacheDirectory, { onRaw: () => { nativeFileRequests++; }, advisories: () => awcFixtures });
-  // Re-publish the fixture's partial catalogs after production restore rejects
-  // their intentionally unprepared slices. Saved native samples are reused.
-  await weather.warmForecast('clouds', manifest => manifest.frames);
-  await weather.warmForecast('icing', manifest => manifest.frames.filter(frame => frame.altitudeFtMsl === 8000));
-  await weather.warmForecast('winds', manifest => manifest.frames.filter(frame =>
-    frame.pressureHpa >= 650 || frame.validTime === manifest.runTime + 3600000));
-  if (!weatherSeeded) {
-    // Each reset gets a pristine copy; mutated data cannot leak between tests.
-    await weather.warmProgs();
-    await weather.warmRadar();
-    await cp(cacheDirectory, seedDirectory, { recursive: true });
-    weatherSeeded = true;
+  if (warmWeather) {
+    // Re-publish the fixture's partial catalogs after production restore rejects
+    // their intentionally unprepared slices. Saved native samples are reused.
+    await weather.warmForecast('clouds', manifest => manifest.frames);
+    await weather.warmForecast('icing', manifest => manifest.frames.filter(frame => frame.altitudeFtMsl === 8000));
+    await weather.warmForecast('winds', manifest => manifest.frames.filter(frame =>
+      frame.pressureHpa >= 650 || frame.validTime === manifest.runTime + 3600000));
+    if (!weatherSeeded) {
+      // Each reset gets a pristine copy; mutated data cannot leak between tests.
+      await weather.warmProgs();
+      await weather.warmRadar();
+      await cp(cacheDirectory, seedDirectory, { recursive: true });
+      weatherSeeded = true;
+    }
   }
   if (awcFixtures && !awcFixtures.failure) await weather.warmAdvisories();
   nativeFileRequests = 0;

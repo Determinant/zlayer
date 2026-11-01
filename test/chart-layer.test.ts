@@ -15,7 +15,8 @@ const readers = { count: 0 };
 Object.assign(globalThis, { chartRegistrations: registered, chartFailures: failures, chartReaders: readers });
 const restoreGlobals: Array<() => void> = [];
 test.beforeEach(() => {
-  for (const [name, value] of Object.entries({ window: new EventTarget(), BroadcastChannel: undefined })) {
+  for (const [name, value] of Object.entries({ window: new EventTarget(),
+    document: Object.assign(new EventTarget(), { visibilityState: 'visible' }), BroadcastChannel: undefined })) {
     const previous = Object.getOwnPropertyDescriptor(globalThis, name);
     Object.defineProperty(globalThis, name, { configurable: true, value });
     restoreGlobals.push(() => { if (previous) Object.defineProperty(globalThis, name, previous); else Reflect.deleteProperty(globalThis, name); });
@@ -59,19 +60,26 @@ test('chart teardown releases readers and recovery subscriptions despite a map c
   product.unmount(); assert.equal(readers.count, baseline);
 });
 
-for (const event of ['inventory', 'online']) test(`${event} rebuilds only failed chart families and unmount releases recovery listeners`, () => {
+for (const event of ['inventory', 'online', 'resume']) test(`${event} rebuilds only failed chart families and unmount releases recovery listeners`, () => {
   const { map, added, layers } = mapFixture();
   const current = { ...catalog, charts: [chart, { ...chart, id: 'terminal', kind: 'vfr-terminal' as const }] };
   const selection: ChartSelection = { base: 'vfr-sectional', overlay: 'vfr-terminal' };
   const products = CHART_FAMILIES.map(family => createChartLayer(current, family));
   products.forEach(product => { product.update({ catalog: current, selection }); product.mount(map); });
-  const retry = () => event === 'inventory' ? notifyOfflineInventory() : window.dispatchEvent(new Event('online'));
+  const retry = () => event === 'inventory' ? notifyOfflineInventory()
+    : event === 'online' ? window.dispatchEvent(new Event('online')) : document.dispatchEvent(new Event('visibilitychange'));
   const order = [...layers];
   retry();
   assert.equal(added(), 2, 'healthy sources are preserved');
   for (const chartId of ['@vfr-terminal', 'terminal']) {
     const before = added();
     for (const listener of failures) listener(chartId);
+    if (event === 'resume') {
+      Object.assign(document, { visibilityState: 'hidden' });
+      retry();
+      assert.equal(added(), before, 'suspension must not restart chart work');
+      Object.assign(document, { visibilityState: 'visible' });
+    }
     retry();
     assert.equal(added(), before + 1, 'only the failed family is reinstalled');
     assert.deepEqual(layers, order, 'repair preserves chart and navigation stacking');

@@ -2,6 +2,22 @@ import { test, expect } from '@playwright/test';
 
 type StartupGate = { allow: boolean; failures: number };
 
+test('an installed workspace opens its charts while an app update is stalled', async ({ page, request }) => {
+  await page.goto('/');
+  await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false');
+  try {
+    await request.post('/__test/hold-app-update');
+    await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration('/'))!.update(); });
+    await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration('/'))?.installing?.state)).toBe('installing');
+    await page.reload();
+    await expect(page.getByLabel('Chart status', { exact: true })).toContainText('MBTILES', { timeout: 10_000 });
+    await expect(page.locator('.app-shell')).toHaveAttribute('aria-busy', 'false', { timeout: 10_000 });
+  } finally {
+    await request.post('/__test/allow-app-update');
+    await request.post('/__test/reset');
+  }
+});
+
 test('selected charts keep startup covered until their first render', async ({ page, request }) => {
   await request.post('/__test/hold-chart-archives');
   await page.addInitScript(() => localStorage.setItem('zlayers-map-preferences-v1', JSON.stringify({

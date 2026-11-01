@@ -28,15 +28,25 @@ async function settledPanel(page: Page) {
 }
 
 type Point = { id: number; x: number; y: number };
+const previousTouches = new WeakMap<Page, Point[]>();
 async function touch(page: Page, type: string, points: Point[]) {
-  return page.locator('.procedure-page-stage').evaluate((stage, { type, points }) => {
+  const previous = previousTouches.get(page) ?? [];
+  previousTouches.set(page, points);
+  return page.locator('.procedure-page-stage').evaluate((stage, { type, points, previous }) => {
     const event = new Event(type, { bubbles: true, cancelable: true });
-    Object.defineProperty(event, 'touches', { value: points.map(point => ({
+    const touches = (values: Point[]) => values.map(point => ({
       identifier: point.id, clientX: point.x, clientY: point.y, target: stage.querySelector('canvas'),
-    })) });
+    }));
+    // End/cancel bubbles to document listeners too; supply the full TouchEvent lists.
+    const changed = type === 'touchend' || type === 'touchcancel'
+      ? previous.filter(point => !points.some(remaining => remaining.id === point.id)) : points;
+    Object.defineProperties(event, {
+      touches: { value: touches(points) }, targetTouches: { value: touches(points) },
+      changedTouches: { value: touches(changed) },
+    });
     stage.dispatchEvent(event);
     return event.defaultPrevented;
-  }, { type, points });
+  }, { type, points, previous });
 }
 
 async function gesture(page: Page, type: string, scale: number) {
@@ -48,7 +58,7 @@ async function gesture(page: Page, type: string, scale: number) {
   }, { type, scale });
 }
 
-test('Ctrl-wheel previews keep the pointer anchor and retain the bitmap until gesture idle', async ({ page }) => {
+test('Ctrl-wheel previews keep the pointer anchor and retain the bitmap until gesture idle', { tag: '@explicit-density' }, async ({ page }) => {
   // Anchor preservation needs scrollable content. In a taller viewport this
   // square fixture fits completely and native scroll bounds clamp the preview.
   await page.setViewportSize({ width: 744, height: 850 });

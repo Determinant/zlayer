@@ -192,6 +192,14 @@ worker, keyed by the complete URL including content identity. Pending requests a
 retained independently behind one dismissible request bubble: recovery of one source
 cannot hide another failure, and dismissal lasts until the request condition ends.
 
+Background imagery failures use plain language explaining that saved charts and
+navigation remain usable, without provider URLs, internal source names or raw
+fetch errors. Classification and recovery still use the original error and source
+identity, so known-offline misses stay covered by the Offline notice. A chart-cache
+startup failure says that charts could not open and offers retry/reopen guidance;
+it does not ask users to understand service workers or MBTiles. Storage and
+integrity failures retain their separate actionable notices.
+
 App-update bubbles likewise dismiss through their body or **Later**. Available
 updates remain in Notifications and General's App updates section; update dismissal
 keeps its existing per-release lifecycle. Blocking startup/map failures and inline
